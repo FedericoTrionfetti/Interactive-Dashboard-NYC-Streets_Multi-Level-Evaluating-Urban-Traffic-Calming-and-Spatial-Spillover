@@ -1,54 +1,50 @@
-# NYC Vision Zero Dashboard: Evaluating Urban Traffic Calming and Spatial Spillover
+# Multi-Level Evaluation of Urban Traffic Calming and Spatial Spillover
 
-This repository contains the codebase and research documentation for my Master's Thesis project. It introduces a comprehensive, multi-level interactive dashboard designed to evaluate the physical interventions of New York City's **Vision Zero** program (2015–2022).
+**Master's Thesis Project**  
+**Data Science Master's Degree (Honor Program)**  
+**Sapienza University of Rome**
 
----
-
-## 🔬 The Research: Academic Context & Contributions
-
-Road traffic injuries remain a leading cause of preventable death in urban environments. While many cities adopt Vision Zero policies, the scientific evaluation of these interventions often suffers from aggregation bias (MAUP), homogeneity assumptions, and lack of traffic exposure data. 
-
-This thesis addresses these limitations through an integrated spatial panel data analysis at the **road segment level (RCSTA)**. 
-
-### Core Research Questions
-1. **The Equity Problem (Allocation):** What socio-economic characteristics (e.g., Median Household Income) predict the installation of traffic-calming measures? Are these life-saving investments distributed equitably across the city's income strata?
-2. **The Spillover Problem (Effectiveness):** Do interventions genuinely reduce crashes, or do they merely displace the risk onto adjacent, untreated segments? 
-
-### The Core Metric: The Risk Rate
-To genuinely measure safety improvements, this platform moves beyond absolute crash counts by utilizing the **Risk Rate**. This metric normalizes crash frequencies by **actual traffic exposure (AADT - Annual Average Daily Traffic)** and adjusts for seasonal variation, isolating the true protective effect of an intervention from mere changes in traffic volume.
+This repository hosts a full-stack, interactive dashboard designed to evaluate the real-world effectiveness of NYC's Vision Zero traffic-calming interventions. By combining a Python/Flask backend with a dynamic DC.js/Mapbox frontend, the tool enables a multi-level spatial and temporal analysis of road safety measures.
 
 ---
 
-## 💻 The Software: Dashboard Architecture
+## 🔬 Research Context & Addressed Limitations
 
-The dashboard is structured into a progressive 3-level analytical funnel, guiding users from a macroscopic view of the entire city network down to a microscopic evaluation of a single road segment.
+This project overcomes several critical limitations identified in existing road safety literature:
+1. **The Equity Problem:** Does safety investment favour high-income areas? The dashboard integrates socio-economic variables (e.g., Median Household Income) at the segment level to evaluate intervention allocation equity.
+2. **The Heterogeneity Problem:** Interventions are not all equal. The analysis strictly disaggregates multiple types of Traffic Calming Measures (TCMs).
+3. **The Exposure Problem:** A reduction in crashes may simply reflect a reduction in traffic. This dashboard evaluates safety using the **Risk Rate**—seasonally adjusted crashes normalized by Annual Average Daily Traffic (AADT).
+4. **The Aggregation Problem (MAUP):** Analysis is anchored to the granular road segment (RCSTA) rather than aggregated Census Tracts.
+5. **The Spillover Problem:** Does traffic calming eliminate risk or just displace it? The system measures spatial spillover to adjacent, untreated segments.
+
+---
+
+## ⚙️ Dashboard Architecture & Progressive Workflow
+
+The interface is structured into three progressive analytical levels, guiding the user from macro-allocation to micro-effectiveness.
 
 ### Level 0: Macro Network Analysis
-**Goal:** Understand the decision drivers behind intervention installations and discover socio-demographic patterns.
-- **Interactive Network Map:** Visualizes thousands of treated and untreated segments.
-- **Parallel Coordinates Plot (PCP):** Explores multidimensional data (income, density, lanes, speed limit). The backend dynamically deduplicates road segments to prevent overlapping biases caused by multiple interventions on a single road.
-- **Crossfiltering System:** Allows slicing the data by installation year, intervention type, and pre-intervention severity indexes.
+**Goal:** Understand decision drivers behind intervention installations and socio-demographic patterns.
+- **Crossfilters & Interactive Map:** Filter thousands of treated and untreated arterial segments by installation year, intervention type, or pre-intervention severity.
+- **Deduplicated Parallel Coordinates Plot (PCP):** Explores stable road-level metrics (e.g., length, density, income, speed limits). The PCP automatically deduplicates segments to avoid artificial overlaps caused by multiple interventions on the same road, providing precise Mean/Range statistics for Treated vs. Untreated cohorts via dynamic tooltips.
 
 ### Level 1: Filtered Cohort Overview
-**Goal:** Evaluate the aggregate performance of a specific, filtered cohort of interventions.
-- **Pre/Post Scatter Plot:** Contrasts the Crash Reduction % against the Traffic Volume Reduction %. Crucial for spotting outliers where an apparent drop in crashes is merely the result of a drop in traffic.
-- **Segment Details Table:** Sorts and identifies candidate segments based on their pre-intervention Risk Rates and their Degree of Intervention (DoI).
+**Goal:** Assess the average performance of the selected cohort and identify outliers.
+- **Scatter Plot (Crash Reduction vs AADT Reduction):** A vital tool to verify true safety improvements. A massive drop in crashes is only considered a success if it outpaces the drop in traffic volume.
+- **Segment Details Table:** Sort interventions by their baseline Risk Rate, Degree of Intervention (DoI), or normalized Risk Reduction percentage.
 
 ### Level 2: Micro/Local Effectiveness Analysis
-**Goal:** The ultimate investigative tool to evaluate real effectiveness and detect **Spatial Spillover** (risk displacement).
-- **Target Analysis:** Evaluates the pre- and post-intervention Risk Rate for the isolated target segment via interactive line plots and precise tooltips.
-- **Local Spatial Filter:** Uses a radius slider to dynamically capture "Local Segments" (physical neighbors).
-- **Spillover Detection:** Instantly identifies adjacent streets that experienced an *increase* in Risk Rate following the target's intervention, answering whether safety was improved or simply relocated to neighboring neighborhoods.
+**Goal:** Evaluate local spillover effects for a single, isolated intervention.
+- **Target vs Local Segments:** Isolates the treated segment and utilizes a dynamic radius slider to fetch "Local Segments" (neighbors).
+- **Risk Rate Analysis:** The backend (`app.py` & Parquet panels) dynamically recalculates the pre/post Risk Rate for both the target and its neighbors. Colors scale from green (safety improved) to red (risk increased), highlighting potential risk displacement.
+- **Future Pre/Post Analysis:** A dedicated panel provides granular event data (Crash Type, Victim Type, Time Scatterplots) to dissect *how* the nature of crashes changed after the intervention.
 
 ---
 
-## 🛠️ Tech Stack & Directory Structure
-
-- **`backend/`**: Python application (`app.py`) serving a robust REST API. Handles complex spatial joins, data deduplication, progressive mathematical reductions (handling zero-denominators), and Parquet file parsing (`crash_monthly_panel.parquet`).
-- **`frontend/`**: Modular JavaScript application separated by logic (`map.js`, `charts.js`, `level0.js`, `level1.js`, `level2.js`, `utils.js`). Uses D3.js, DC.js, and mapping libraries to render responsive SVG visualizations.
-- **`data/`**: Processed datasets containing NYC VZV crash and infrastructure data merged with ACS census socio-demographics.
-
----
+## 🛠️ Technology Stack
+- **Backend:** Python, Flask, Pandas, PyArrow (Parquet for fast panel data querying).
+- **Frontend:** JavaScript, DC.js, D3.js, Crossfilter, Leaflet / Mapbox.
+- **Data Source:** NYC Open Data (Vision Zero View, Crash Data, AADT).
 
 ## 👨‍💻 Author
 **Federico Trionfetti**
