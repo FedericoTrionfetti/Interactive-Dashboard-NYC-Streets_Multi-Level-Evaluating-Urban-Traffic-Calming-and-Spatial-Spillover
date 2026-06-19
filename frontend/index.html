@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Level 0</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- Leaflet CSS: stili della mappa interattiva -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/dc/4.2.7/style/dc.min.css">
+  <!-- DC.js CSS: stili degli istogrammi crossfilter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <!-- preconnessione a Google Fonts per ridurre la latenza -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <!-- font Inter usato nell'interfaccia -->
+  <link rel="stylesheet" href="style.css?v=2"> <!-- stili personalizzati del dashboard -->
+  <link rel="stylesheet" href="parcoords.css"> <!-- stili della libreria Parallel Coordinates -->
+  <script src="parcoords.umd.js"></script>
+  <!-- libreria Parallel Coordinates (caricata nell'head perché usata subito al render) -->
+</head>
+
+<body>
+  <div class="griglia"> <!-- layout a due colonne: sinistra (mappa + PCP) e destra (grafici + tabella) -->
+
+    <!-- COLONNA SINISTRA: mappa Leaflet e grafico a coordinate parallele -->
+    <div class="colonna-sinistra">
+      <div id="map"></div> <!-- contenitore della mappa Leaflet, inizializzata in index.js -->
+
+      <!-- PCP PANEL: visibile in L0 e L1 -->
+      <div class="panel" id="pc-panel"> <!-- pannello del grafico a coordinate parallele -->
+        <div class="pcp-header">
+          <span class="panel-title">Parallel Coordinates</span>
+          <!-- toggle per azzerare l'opacità delle polyline e far emergere le density curve -->
+          <button id="pcp-fade-btn" class="pcp-ctrl-btn" title="Fade all lines to reveal density curves">Density
+            Curves</button>
+        </div>
+        <div id="pcp-container" class="parcoords"></div>
+        <!-- contenitore SVG del grafico PCP, popolato da parcoords.umd.js -->
+
+        <!-- legenda del PCP: mostra i colori per contesto totale, trattati attivi e non trattati attivi -->
+        <div class="pcp-legend">
+          <div class="pcp-legend-item">
+            <div class="pcp-legend-swatch" id="pcp-swatch-1" style="background:#c7c7c7"></div>
+            <span id="pcp-leg-1">Unselected untreated</span>
+          </div>
+          <div class="pcp-legend-item">
+            <div class="pcp-legend-swatch" id="pcp-swatch-3" style="background:#555555"></div>
+            <span id="pcp-leg-3">Selected untreated</span>
+          </div>
+          <div class="pcp-legend-item">
+            <div class="pcp-legend-swatch" id="pcp-swatch-t-in" style="background:#8eb1d4"></div>
+            <span id="pcp-leg-t-in">Unselected treated</span>
+          </div>
+          <div class="pcp-legend-item">
+            <div class="pcp-legend-swatch" id="pcp-swatch-2" style="background:#1f77b4"></div>
+            <span id="pcp-leg-2">Selected treated</span>
+          </div>
+        </div>
+        
+        <div id="pcp-axis-tooltip" style="display:none; position:absolute; pointer-events:none; z-index:9999; background:rgba(255,255,255,0.95); color:#333; padding:8px 10px; border-radius:6px; font-size:11px; border: 1px solid #d0d5dd; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"></div>
+
+      </div>
+
+      <!-- L2 FILTER PANEL: visibile solo in Level 2 -->
+      <div id="l2-filter-panel" class="panel l2-filter-panel"
+        style="display:none; flex-direction:column; gap:16px; height:285px; flex-shrink:0;">
+
+        <!-- TOP ROW: TARGET INFO & CONTROLS -->
+        <div style="display:flex; flex-direction:row; gap:20px;">
+          
+          <!-- LEFT: EFFECTIVENESS ANALYSIS CONTROLS -->
+          <div style="flex: 1.5; min-width: 250px; display:flex; flex-direction:column; gap:8px;">
+            <!-- Header con titolo -->
+            <div class="l2-panel-header"
+              style="display:flex; justify-content:space-between; align-items:center; padding-bottom:4px; border-bottom:1px solid #e2e8f0;">
+              <span class="panel-title" style="margin-bottom:0;">Effectiveness Analysis</span>
+            </div>
+
+            <!-- Radius & Time Window -->
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <div class="l2-control-row" style="flex:1; align-items:center;">
+                <label class="l2-ctrl-label">Time window</label>
+                <div class="l2-select-wrap">
+                  <select id="l2-time-select" class="time-window-select"
+                    style="border-radius: 4px; padding: 2px 4px; background: #333; color: white; border: 1px solid #555; width: 100%;">
+                    <option value="1" selected>1 Year</option>
+                    <option value="2">2 Years</option>
+                    <option value="3">3 Years</option>
+                  </select>
+                </div>
+              </div>
+              <div class="l2-control-row" style="flex:1; flex-direction:column; gap:4px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+                  <label class="l2-ctrl-label" style="padding-top:0;">Radius</label>
+                  <span class="l2-slider-val" id="l2-radius-label">250 m</span>
+                </div>
+                <div class="l2-slider-wrap" style="width:100%;">
+                  <input type="range" id="l2-radius-slider" class="l2-slider" min="250" max="1500" step="50" value="250">
+                  <div class="l2-slider-track-labels">
+                    <span>250m</span><span>1500m</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- MIDDLE: AVG LOCAL CARD -->
+          <div style="flex: 0.8; display:flex; flex-direction:column; min-width:0;">
+            <div id="l2-avg-local-info-inner" class="l2-target-map-info" style="width: 100%; box-sizing: border-box; display:flex; flex-direction:column; justify-content:center; height: 100%;">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+
+          <!-- RIGHT: TARGET SEGMENT INFO -->
+          <div style="flex: 2.5; display:flex; flex-direction:column; min-width:0;">
+            <div id="l2-target-map-info-inner" class="l2-target-map-info" style="width: 100%; box-sizing: border-box; display:flex; flex-direction:column; justify-content:center; height: 100%;">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+
+        </div>
+
+        <!-- BOTTOM ROW: HISTOGRAMS -->
+        <div class="l2-section" style="flex:1; margin-bottom:0; padding-bottom:0; border:none; display:flex; flex-direction:row; gap:16px;">
+          <!-- Risk Rate % -->
+          <div style="flex:1; display:flex; flex-direction:column;">
+            <span class="l2-ctrl-label" style="font-size:11px; margin-bottom:2px; font-weight:bold;">Risk Rate %</span>
+            <div id="l2-chart-a-risk" class="l2-dc-chart" style="width:100%; flex:1;"></div>
+          </div>
+          <!-- Pre Risk Rate -->
+          <div style="flex:1; display:flex; flex-direction:column;">
+            <span class="l2-ctrl-label" style="font-size:11px; margin-bottom:2px; font-weight:bold;">Pre Risk Rate</span>
+            <div id="l2-chart-a-pre" class="l2-dc-chart" style="width:100%; flex:1;"></div>
+          </div>
+          <!-- Post Risk Rate -->
+          <div style="flex:1; display:flex; flex-direction:column;">
+            <span class="l2-ctrl-label" style="font-size:11px; margin-bottom:2px; font-weight:bold;">Post Risk Rate</span>
+            <div id="l2-chart-a-post" class="l2-dc-chart" style="width:100%; flex:1;"></div>
+          </div>
+        </div>
+
+        <!-- Loading overlay -->
+        <div id="l2-loading-overlay" class="l2-loading-overlay" style="display:none">
+          <div class="l2-loading-inner">
+            <div class="l2-spinner"></div>
+            <span class="l2-loading-text">Computing…</span>
+          </div>
+        </div>
+      </div><!-- end l2-filter-panel -->
+    </div> <!-- end colonna-sinistra -->
+
+    <!-- COLONNA DESTRA: pulsante analisi, Level 0 (istogrammi + timeline) e Level 1 (scatter + tabella) -->
+    <div class="colonna-destra">
+
+      <!-- HEADER ACTION BUTTONS: Analyze (L0), Spillover (L1), Exit (L2) -->
+      <div class="right-header-actions"
+        style="position: sticky; top: 0; z-index: 100; background: #f4f4f5; padding-bottom: 8px; display:flex; gap:8px; flex-shrink:0;">
+        <button id="analyze-btn" class="analyze-btn disabled" style="flex:1; margin-bottom:0;">
+          Analyze group
+        </button>
+        <div id="l1-actions" style="display:none; flex:1; gap:8px; width: 100%;">
+          <button id="back-btn" class="analyze-btn" style="flex:1; margin-bottom:0;">
+            ← Back to network
+          </button>
+          <button id="spillover-btn" class="analyze-btn disabled" style="flex:1; margin-bottom:0; opacity:0.5;"
+            title="Select a segment for the Effectiveness Analysis">
+            Select a target segment
+          </button>
+        </div>
+        <button id="l2-back-btn" class="analyze-btn" style="display:none; flex:1; margin-bottom:0;">
+          ← Back to analyze group
+        </button>
+      </div>
+
+      <!-- L2 LINEPLOT PANEL: Moved to right column in L2 -->
+      <div id="l2-lineplot-panel" class="panel" style="display:none; flex: 1; min-height: 0; flex-direction: column;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span class="panel-title">Monthly Time Series & Annual Summaries</span>
+          <select id="l2-lineplot-ma" style="font-size: 11px; padding: 2px; border: 1px solid #ccc; border-radius: 4px; outline:none; cursor:pointer;">
+            <option value="1">Risk Rate Raw</option>
+            <option value="3">3-Month MA</option>
+            <option value="6">6-Month MA</option>
+            <option value="12" selected>12-Month MA</option>
+          </select>
+        </div>
+        
+        <!-- Stats moved to L2 filter panel top row -->
+        
+        <!-- Charts taking full width -->
+        <div style="flex: 1; display: flex; flex-direction: column; min-height: 0; margin-top: 8px;">
+          <div id="l2-lineplot-container" style="flex: 1; min-height: 0;"></div>
+          <div id="l2-aadt-bar-container" style="flex: 0 0 110px; min-height: 0; margin-top: 4px;"></div>
+        </div>
+      </div>
+
+            <!-- Future Pre/Post Analysis Panel -->
+      <div id="l2-right-placeholder" class="panel" style="display:none; height: 245px; flex-shrink: 0; flex-direction: column; background: #fff; border: 1px solid #d0d5dd;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+          <span class="panel-title" style="margin:0;">Future Pre/Post Analysis</span>
+          <select id="l2-events-select" onchange="if(typeof _l2RenderSelectedEventChart === 'function') _l2RenderSelectedEventChart()" style="font-size: 11px; padding: 2px; border: 1px solid #ccc; border-radius: 4px; outline:none; cursor:pointer; max-width: 140px;">
+            <option value="victim_type">Victim Type</option>
+            <option value="crash_type">Crash Type</option>
+            <option value="time_scatter">Time Scatterplot</option>
+          </select>
+        </div>
+        <div id="l2-events-chart-container" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; justify-content: center;">
+        </div>
+      </div>
+
+      <div id="summary-stats-bar" class="summary-stats-bar"
+        style="margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+        <span id="stats-treatments" class="stats-item"><b>—</b> of — interventions</span>
+        <span class="stats-sep">·</span>
+        <span id="stats-roads" class="stats-item"><b>—</b> of — treated roads</span>
+        <span class="stats-sep" id="stats-excluded-sep" style="display:none;">·</span>
+        <span id="stats-excluded" class="stats-item" style="display:none; white-space: nowrap;"><b>—</b> excluded (insufficient data)</span>
+      </div>
+
+      <!-- PANNELLO LEVEL 0: filtri crossfilter, istogrammi e slider temporale -->
+      <div id="l0-panel" class="l0-panel">
+
+        <!-- grafico a barre verticali per tipo di intervento (sostituisce i pill buttons) -->
+        <div class="intervention-section">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <span class="chart-title">Intervention type</span>
+          </div>
+          <div id="intervention-bar-chart"></div> <!-- D3 bar chart generato dinamicamente -->
+        </div>
+
+        <!-- ISTOGRAMMI DC.JS: mostrano la distribuzione dei segmenti trattati per variabile -->
+        <div class="istogrammi-header">
+          <span class="chart-title" style="flex:1">Distributions</span>
+          <button id="reset-filters-btn" class="pcp-ctrl-btn"
+            title="Reset all filters (timeline, histograms, PCP, interventions)">Reset Filters</button>
+          <button id="toggle-tail-btn" class="pcp-ctrl-btn"
+            title="Toggle visibility of the top 5% outliers">Show Tail (5%)</button>
+          <div style="display:flex; flex-direction:column; align-items:flex-end;">
+            <select id="time-window-select" class="time-window-select"
+              style="border-radius: 4px; padding: 2px 4px; background: #333; color: white; border: 1px solid #555;">
+              <option value="1" selected>1 Year Pre</option>
+              <option value="2">2 Years Pre</option>
+              <option value="3">3 Years Pre</option>
+            </select>
+          </div>
+        </div>
+        <div class="istogrammi-container">
+
+          <!-- Severity rate pre (injured+fatal*10) -->
+          <div class="chart-wrap" id="wrap-aadt">
+            <span class="chart-title" id="title-aadt">Severity Rate</span>
+            <div id="chart-aadt"></div> <!-- contenitore SVG dell'istogramma AADT, renderizzato da dc.js -->
+          </div>
+
+          <!-- istogramma Traffic Index pre -->
+          <div class="chart-wrap" id="wrap-traffic">
+            <span class="chart-title" id="title-traffic">Traffic Index</span>
+            <div id="chart-traffic"></div> <!-- contenitore SVG dell'istogramma traffic, renderizzato da dc.js -->
+          </div>
+
+          <!-- histogram: crash rate pre (deseasoned) -->
+          <div class="chart-wrap" id="wrap-cr">
+            <span class="chart-title" id="title-cr">Crash Rate deseasoned</span>
+            <div id="chart-cr"></div>
+          </div>
+
+          <!-- histogram: risk rate pre (deseasoned + normalised per AADT * 1000) -->
+          <div class="chart-wrap" id="wrap-cr-norm">
+            <span class="chart-title" id="title-cr-norm">Risk Rate</span>
+            <div id="chart-cr-norm"></div>
+          </div>
+
+        </div>
+
+        <!-- SLIDER TEMPORALE: filtra i segmenti trattati per anno di installazione -->
+        <div class="timeline-panel" id="timeline-panel">
+          <div class="timeline-header">
+            <span class="panel-title">Installation year filter</span>
+            <span class="timeline-badge" id="timeline-badge">All years</span>
+            <!-- badge che mostra il range di anni selezionato -->
+          </div>
+          <div id="timeline-mini-chart" style="width:100%; height:44px; margin-bottom:4px;"></div>
+          <div class="timeline-track-wrap">
+            <span class="timeline-year" id="tl-year-min-label">—</span> <!-- etichetta anno minimo selezionato -->
+            <div class="timeline-track" id="timeline-track">
+              <div class="timeline-fill" id="timeline-fill"></div>
+              <!-- barra colorata che rappresenta il range selezionato -->
+              <input type="range" id="tl-slider-min" class="tl-slider" min="2000" max="2024" value="2000" step="1">
+              <!-- handle sinistro: anno minimo -->
+              <input type="range" id="tl-slider-max" class="tl-slider" min="2000" max="2024" value="2024" step="1">
+              <!-- handle destro: anno massimo -->
+            </div>
+            <span class="timeline-year" id="tl-year-max-label">—</span> <!-- etichetta anno massimo selezionato -->
+          </div>
+        </div>
+
+      </div>
+
+      <!-- PANNELLO LEVEL 1: visibile solo dopo aver cliccato "Analyze group" -->
+      <div id="l1-panel" class="l1-panel" style="display:none; position:relative;">
+        <!-- Loading overlay -->
+        <div id="l1-loading-overlay" class="l2-loading-overlay" style="display:none">
+          <div class="l2-loading-inner">
+            <div class="l2-spinner"></div>
+            <span class="l2-loading-text">Computing…</span>
+          </div>
+        </div>
+
+        <!-- rimosso il secondo bottone Back to network come richiesto -->
+        <div id="active-filters-bar" class="active-filters-bar" style="display:none;"></div>
+
+        <!-- scatter plot: riduzione % vs riduzione % normalizzata per AADT -->
+        <div class="l1-scatter-wrap panel">
+          <span class="panel-title">Crash reduction deseasoned vs risk rate reduction</span>
+          <div id="l1-scatter"></div> <!-- contenitore SVG dello scatter plot, costruito in index.js -->
+        </div>
+
+        <!-- tabella dettaglio segmenti con ordinamento per colonna e highlight interattivo -->
+        <div class="l1-table-wrap panel">
+
+          <div class="l1-table-header">
+            <span class="panel-title">Segment details</span>
+            <span class="l1-badge" id="l1-badge">0 segments</span> <!-- contatore segmenti mostrati nella tabella -->
+          </div>
+
+          <div class="l1-table-scroll">
+            <table id="l1-table">
+              <thead>
+                <tr>
+                  <th data-col="road_name">Road name</th>
+                  <th data-col="intervention" title="Intervention Type">Int.</th>
+                  <th data-col="install_year">Mo/Yr</th>
+                  <th id="th-reduction_pct" data-col="reduction_norm_1y_pct">Crash Var. %</th>
+                  <th id="th-reduction_aadt" data-col="reduction_norm_aadt_1y_pct" title="Risk Rate Variation (%)">Risk
+                    Rate Red. %</th>
+                  <th id="th-cr_pre" data-col="crashes_pre_1y"
+                    title="Raw Pre Crashes">Raw Pre Crashes</th>
+                  <th id="th-reduction_abs" data-col="traffic_variation_1y" title="Traffic variation (post - pre)">Traffic Variation</th>
+                  <th data-col="doi">DoI</th>
+                </tr>
+              </thead>
+              <tbody id="l1-tbody"></tbody> <!-- righe generate dinamicamente in index.js -->
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- tooltip globale per barra intervento hover -->
+  <div id="int-hover-tooltip" class="int-hover-tooltip" style="display:none"></div>
+
+  <!-- L2 Map Tooltip -->
+  <div id="l2-map-tooltip" class="l2-map-tooltip" style="display:none"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
+  <!-- Turf.js: geometria e buffer -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Leaflet.js: libreria per la mappa interattiva -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+  <!-- D3.js: manipolazione SVG e scale, richiesta da DC.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crossfilter2/1.5.4/crossfilter.min.js"></script>
+  <!-- Crossfilter2: filtraggio multidimensionale dei dati, richiesto da DC.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dc/4.2.7/dc.min.js"></script>
+  <!-- DC.js: grafici crossfilter interattivi (istogrammi) -->
+  <!-- ── Core: configurazione, stato, utility ─────────────────────────── -->
+  <script src="config.js"></script>    <!-- costanti e palette colori -->
+  <script src="state.js"></script>     <!-- variabili globali di stato -->
+  <script src="utils.js"></script>     <!-- funzione percentile() -->
+  <!-- ── Mappa e PCP ──────────────────────────────────────────────────── -->
+  <script src="map.js"></script>       <!-- Leaflet: mappa, layer, legenda -->
+  <script src="pcp.js"></script>       <!-- Parallel Coordinates + KDE Densità -->
+  <!-- ── Crossfilter + Level 0 ────────────────────────────────────────── -->
+  <script src="crossfilter.js"></script> <!-- buildCrossfilter, orchestratore -->
+  <script src="level0.js"></script>    <!-- intervento, timeline, fetch iniziale -->
+  <!-- ── Level 1 ──────────────────────────────────────────────────────── -->
+  <script src="level1.js"></script>    <!-- scatter L1, tabella, highlight -->
+  <!-- ── Level 2 ──────────────────────────────────────────────────────── -->
+  <script src="level2_core.js"></script>       <!-- enterL2/exitL2, fetch, layer, crossfilter L2 -->
+  <script src="level2_timeseries.js"></script> <!-- lineplot, AADT bar, moving average -->
+  <script src="level2_events.js"></script>     <!-- heatmap, radar, barplot, scatter eventi -->
+</body>
+
+</html>

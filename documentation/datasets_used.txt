@@ -1,0 +1,113 @@
+<small>
+
+### 🗂️ File generati da `Fase_1_2.py`
+
+segments_master           →     21,235 righe
+segments_master_dedup     →     15,764 righe
+neighbors_1500m           →    282,874 righe
+crash_monthly_panel       →    410,628 righe
+crashes_event_log         →  1,671,645 righe
+---
+
+#### 1. `segments_master.geojson`
+📁 `Fase_1_2_dst/segments_master.geojson` | 📐 GeoJSON (LineString, EPSG:4326)
+📊 **Struttura:** 1 riga per *caso VZV* (N interventi = N righe) + 1 riga per segmento non trattato (`treated=0`).
+🎯 **Funzione:** Dataset analitico principale per analisi a livello di singolo intervento.
+
+| Variabile | Tipo | Descrizione Sintetica |
+|---|---|---|
+| `geometry` | `LineString` | Geometria del segmento (EPSG:4326). |
+| `RCSTA` | `int` | ID univoco del segmento stradale. |
+| `road_name` | `str` | Nome della strada. |
+| `treated` | `int` | `1` = trattato (VZV); `0` = non trattato. |
+| `intervention` | `str` | Tipo di intervento VZV (`NaN` se non trattato). |
+| `install_year` / `install_month` | `float` | Anno e mese di installazione (`NaN` se non trattato). |
+| `length_m` | `float` | Lunghezza segmento (metri). |
+| `speed_limit` | `float` | Limite velocità (mph). Default 25 se mancante. |
+| `total_lanes` | `float` | Numero totale corsie. |
+| `MHI` / `density` | `float` | Reddito mediano (USD) / Densità abitativa (ab/km²). |
+| `AADT_pre_Xy` | `float` | Traffico medio giornaliero nei X anni pre-intervento. |
+| `traffic_index_pre_Xy` | `float` | AADT ponderato per veicoli pesanti: `AADT × (1 + SU_share)`. |
+| `traffic_index_post_Xy` | `float` | AADT ponderato per veicoli pesanti nel periodo post-intervento. |
+| `traffic_variation_Xy` | `float` | Variazione assoluta del traffic index (post - pre). |
+| `SU_share_pre_Xy` | `float` | Quota media di veicoli pesanti (SU) nella finestra pre. |
+| `severity_index_pre_Xy` | `float` | Indice di gravità pre. |
+| `crashes_pre_Xy` / `_post_Xy` | `int` | Conteggio grezzo di incidenti nella finestra pre/post. |
+| `reduction_Xy` / `_Xy_pct` | `float` | Riduzione assoluta e percentuale dei conteggi grezzi pre vs post. |
+| `crashes_pre_norm_Xy` / `_post_norm_Xy` | `float` | Crash pre/post destagionalizzati: `n_crashes / media_mensile_globale`. |
+| `reduction_norm_Xy` / `_Xy_pct` | `float` | Riduzione assoluta e percentuale dei crash destagionalizzati. |
+| `crashes_pre_norm_aadt_Xy` / `_post_norm_aadt_Xy`| `float` | Risk rate pre/post: `crash_norm / AADT × 1000` (destagionalizzato e normalizzato per traffico). |
+| `reduction_norm_aadt_Xy` / `_Xy_pct`| `float` | Riduzione assoluta e percentuale del risk rate pre vs post. |
+
+> ⚠️ **Nota finestre:** `_1y`, `_2y`, `_3y` indicano finestre di 1, 2 o 3 anni pre/post. La finestra post è troncata alla data del caso VZV successivo sullo stesso segmento per evitare overlap.
+
+---
+
+#### 2. `segments_master_dedup.geojson`
+📁 `Fase_1_2_dst/segments_master_dedup.geojson` | 📐 GeoJSON (LineString, EPSG:4326)
+📊 **Struttura:** 1 riga per *RCSTA* (segmento univoco), trattati e non.
+🎯 **Funzione:** Versione deduplicata per analisi cross-sectional. Per i trattati: metriche *pre* dal **primo** intervento, metriche *post* e *riduzioni* dall'**ultimo** (effetto cumulativo). Contiene le stesse variabili di `segments_master.geojson`.
+
+---
+
+#### 3. `neighbors_1500m.parquet`
+📁 `Fase_1_2_dst/neighbors_1500m.parquet` | 📊 Parquet (Snappy)
+📊 **Struttura:** Tabella simmetrica di coppie di segmenti (se A→B esiste, esiste anche B→A).
+🎯 **Funzione:** Grafo di adiacenza spaziale. Identifica i segmenti di controllo *locali* entro 1500 m.
+
+---
+
+#### 4. `crash_monthly_panel.parquet`
+📁 `Fase_1_2_dst/crash_monthly_panel.parquet` | 📊 Parquet (Snappy)
+📊 **Struttura:** Panel mensile bilanciato con zeri espliciti per i mesi senza incidenti.
+🎯 **Funzione:** Lookup table pre-aggregata per calcolare variazioni % del **Risk Rate** a runtime su finestre pre/post arbitrarie, senza ri-aggregare i dati grezzi.
+
+| Variabile | Tipo | Descrizione Sintetica |
+|---|---|---|
+| `RCSTA` | `int` | ID univoco del segmento stradale. |
+| `year` | `int` | Anno di riferimento. |
+| `month` | `int` | Mese di riferimento (1–12). |
+| `ts` | `datetime` | Timestamp (primo giorno del mese, es. `2015-01-01`). |
+| `risk_rate` | `float` | Risk rate mensile per 1000 veicoli (`crash_norm / AADT * 1000`). |
+
+---
+
+#### 5. `crashes_event_log.parquet`
+📁 `Fase_1_2_dst/crashes_event_log.parquet` | 📊 Parquet (Snappy)
+📊 **Struttura:** Log dettagliato a livello di singolo incidente (event-level data).
+🎯 **Funzione:** Utilizzato per le analisi puntuali pre/post intervento (Future Pre/Post Analysis).
+
+| Variabile | Tipo | Descrizione Sintetica |
+|---|---|---|
+| `RCSTA` | `float` | ID univoco del segmento stradale. |
+| `ts` | `datetime` | Data e ora esatta dell'incidente. |
+| `crash_type` | `str` | Tipologia dell'incidente. |
+| `victim_type` | `str` | Tipologia della vittima coinvolta. |
+| `hour` | `int` | Ora dell'incidente (0-23). |
+| `day_of_week` | `int` | Giorno della settimana dell'incidente. |
+
+</small>
+
+
+## Sapendo che:
+I calcoli base presenti nel codice di `Fase_1_2.py` valutano le tre dimensioni della riduzione in questo modo:
+
+```python
+# 1. Riduzione Conteggi Grezzi
+n_crashes_pre  = sum(df.loc[mask_pre,  "n_crashes"])
+n_crashes_post = sum(df.loc[mask_post, "n_crashes"])
+reduction      = n_crashes_pre - n_crashes_post
+reduction_pct  = (reduction / n_crashes_pre) * 100
+
+# 2. Riduzione Destagionalizzata (media mensile di crash_norm)
+crash_norm_pre  = mean(df.loc[mask_pre,  "crash_norm"])
+crash_norm_post = mean(df.loc[mask_post, "crash_norm"])
+reduction_norm  = crash_norm_pre - crash_norm_post
+reduction_norm_pct = (reduction_norm / crash_norm_pre) * 100
+
+# 3. Riduzione Risk Rate (media mensile di risk_rate)
+risk_pre             = mean(df.loc[mask_pre,  "risk_rate"])
+risk_post            = mean(df.loc[mask_post, "risk_rate"])
+reduction_norm_aadt  = risk_pre - risk_post
+reduction_norm_aadt_pct = (reduction_norm_aadt / risk_pre) * 100
+```

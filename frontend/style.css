@@ -1,0 +1,1182 @@
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    overflow: hidden;
+    box-sizing: border-box;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 13px;
+    color: #222;
+    background: #f4f4f5;
+}
+
+*, *:before, *:after { box-sizing: inherit; }
+
+/* =========================================
+   1. LAYOUT PRINCIPALE (GRIGLIA MACRO)
+   ========================================= */
+.griglia {
+    display: grid;
+    grid-template-columns: 60% 40%; /* Mappa/Drill-down a sinistra (60%), Analytics a destra (40%) */
+    height: 100vh;
+    gap: 12px;
+    padding: 12px;
+}
+
+.colonna-sinistra,
+.colonna-destra {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+}
+
+#map {
+    width: 100%;
+    flex: 1 1 0;
+    border-radius: 6px;
+    min-height: 0;
+}
+
+.panel {
+    background: #fff;
+    border-radius: 6px;
+    padding: 8px 10px 6px;
+    flex-shrink: 0;
+}
+
+.panel-title {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #999;
+    margin-bottom: 4px;
+}
+
+#MyFourthChart { width: 100%; }
+
+/* Contenitore a griglia per organizzare i 4 istogrammi in formato 2x2 */
+.istogrammi-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-auto-rows: 1fr;
+    gap: 8px;
+    flex: 1 1 0;
+    min-height: 0;
+}
+
+.chart-wrap {
+    background: #fff;
+    border-radius: 6px;
+    padding: 6px 8px 4px;
+    min-width: 0;
+    min-height: 0;
+}
+
+.chart-title {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #999;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── Barra riepilogo live (filtrati / totali) ── */
+.summary-stats-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #fff;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #555;
+    flex-shrink: 0;
+}
+.stats-item { color: #1f77b4; }
+.stats-sep { color: #bbb; }
+
+.active-filters-bar {
+    font-size: 10px;
+    color: #666;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    padding: 4px 6px;
+    margin-bottom: 8px;
+    height: 38px;
+    line-height: 14px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    white-space: normal;
+    flex-shrink: 0;
+}
+/* hide scrollbar for webkit */
+.active-filters-bar::-webkit-scrollbar { height: 4px; }
+.active-filters-bar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+
+/* ── Sezione interventi (barchart D3 + titolo) ── */
+.intervention-section {
+    background: #fff;
+    border-radius: 6px;
+    padding: 6px 10px 4px;
+    flex-shrink: 0;
+}
+#intervention-bar-chart {
+    width: 100%;
+    overflow: visible;
+}
+#intervention-bar-chart svg {
+    display: block;
+    overflow: visible;
+}
+/* Barre del grafico interventi */
+.int-bar-rect {
+    cursor: pointer;
+    transition: opacity 0.12s;
+}
+.int-bar-rect:hover { fill: #e45756 !important; opacity: 1; }
+.int-bar-rect.active { fill: #e45756 !important; stroke: #c84040; stroke-width: 1px; }
+/* Overlay proporzionale (hover highlight) disegnato sopra ogni barra */
+.int-overlay-rect { pointer-events: none; }
+
+/* Tooltip hover barra intervento */
+.int-hover-tooltip {
+    position: fixed;
+    background: rgba(20,20,30,0.9);
+    color: #fff;
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 11px;
+    pointer-events: none;
+    z-index: 9998;
+    white-space: nowrap;
+    box-shadow: 0 3px 12px rgba(0,0,0,0.3);
+}
+
+/* ── Header istogrammi + toggle Focus view ── */
+.istogrammi-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+/* ── Pulsanti controllo PCP (Fade) e istogrammi (Focus view) ── */
+.pcp-ctrl-btn {
+    padding: 3px 10px;
+    border: 1px solid #d0d5dd;
+    border-radius: 12px;
+    background: #fff;
+    font-size: 10px;
+    font-weight: 600;
+    color: #666;
+    cursor: pointer;
+    letter-spacing: 0.03em;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+.pcp-ctrl-btn:hover { background: #f0f4ff; border-color: #1f77b4; color: #1f77b4; }
+.pcp-ctrl-btn.active { background: #1f77b4; border-color: #1f77b4; color: #fff; }
+
+/* Stile base per i pulsanti a pillola dei trattamenti (retrocompatibilità, non più usati nel L0) */
+.intervention-btn {
+    flex: 1 1 calc(33.333% - 6px);
+    text-align: center;
+    padding: 4px 10px;
+    border: 1px solid #d0d5dd;
+    border-radius: 14px;
+    background: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    color: #555;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.intervention-btn:hover { background: #f0f4ff; border-color: #1f77b4; color: #1f77b4; }
+.intervention-btn.active { background: #1f77b4; border-color: #1f77b4; color: #fff; }
+
+/* =========================================
+   2. SLIDER TEMPORALE INTERATTIVO
+   ========================================= */
+.timeline-panel {
+    background: #fff;
+    border-radius: 6px;
+    padding: 8px 14px 10px;
+    flex-shrink: 0;
+}
+
+.timeline-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.timeline-badge {
+    font-size: 11px;
+    font-weight: 600;
+    color: #1f77b4;
+    background: #e8f2fb;
+    padding: 1px 8px;
+    border-radius: 20px;
+    letter-spacing: 0.03em;
+}
+
+.timeline-track-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.timeline-year {
+    font-size: 11px;
+    font-weight: 600;
+    color: #555;
+    min-width: 32px;
+    text-align: center;
+}
+
+.timeline-track {
+    position: relative;
+    flex: 1;
+    height: 20px;
+    display: flex;
+    align-items: center;
+}
+
+.timeline-fill {
+    position: absolute;
+    height: 4px;
+    background: #1f77b4;
+    border-radius: 2px;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.timeline-track::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: #ddd;
+    border-radius: 2px;
+}
+
+.tl-slider {
+    position: absolute;
+    width: 100%;
+    height: 4px;
+    background: transparent;
+    -webkit-appearance: none;
+    appearance: none;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.tl-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #1f77b4;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    pointer-events: all;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+.tl-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+.tl-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #1f77b4;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    pointer-events: all;
+    cursor: pointer;
+}
+
+.map-overlay-btn,
+.map-overlay-select-wrap,
+.map-overlay-select,
+.map-legend {
+    font-size: 12px;
+    color: #333;
+}
+
+.map-overlay-btn {
+    display: block;
+    padding: 5px 10px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    cursor: pointer;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    transition: background 0.15s, box-shadow 0.15s;
+    margin: 8px;
+}
+.map-overlay-btn:hover { background: #f0f4ff; box-shadow: 0 3px 10px rgba(0,0,0,0.2); }
+
+.map-overlay-select-wrap {
+    margin: 8px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    overflow: hidden;
+}
+/* Menu a tendina per cambiare il target cromatico della mappa. Nasconde l'icona nativa sostituendola con un SVG */
+.map-overlay-select {
+    display: block;
+    padding: 5px 24px 5px 10px;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+}
+.map-overlay-select:hover { background-color: #f0f4ff; }
+
+.map-legend {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    padding: 8px 12px;
+    min-width: 160px;
+    margin: 8px;
+    line-height: 1.5;
+}
+.legend-title {
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #555;
+    margin-bottom: 6px;
+}
+.legend-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+    color: #444;
+    margin-bottom: 3px;
+}
+.legend-treated {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid #eee;
+    font-weight: 600;
+    color: #1f77b4;
+}
+.legend-swatch {
+    display: inline-block;
+    width: 14px;
+    height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
+    border: 1px solid rgba(0,0,0,0.1);
+}
+
+/* =========================================
+   3. PANNELLI DI ANALISI (LIVELLO 0 E LIVELLO 1)
+   ========================================= */
+/* Entrambi i pannelli condividono la stessa struttura flex per scambiarsi di posto fluidamente */
+.l0-panel, .l1-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1 1 0;
+    min-height: 0;
+}
+
+/* Pulsante primario per innescare l'azione di Drill-down al Livello 1 */
+.analyze-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, #1f77b4 0%, #0d5a9f 100%);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    box-shadow: 0 3px 10px rgba(31,119,180,0.35);
+    transition: transform 0.12s, box-shadow 0.12s, background 0.15s;
+    flex-shrink: 0;
+}
+.analyze-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 5px 16px rgba(31,119,180,0.45);
+    background: linear-gradient(135deg, #2589d0 0%, #1565b0 100%);
+}
+.analyze-btn:active { transform: translateY(0); }
+.analyze-btn.disabled {
+    background: #e0e0e0;
+    color: #888;
+    box-shadow: none;
+    pointer-events: none;
+    cursor: not-allowed;
+}
+
+.back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 14px;
+    background: #fff;
+    border: 1px solid #d0d5dd;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #555;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    transition: background 0.12s, box-shadow 0.12s;
+    flex-shrink: 0;
+    align-self: flex-start;
+}
+.back-btn:hover { background: #f0f4ff; box-shadow: 0 2px 8px rgba(0,0,0,0.12); color: #1f77b4; }
+
+.l1-scatter-wrap { flex-shrink: 0; }
+
+/* =========================================
+   4. SCATTER PLOT E TOOLTIP
+   ========================================= */
+/* #l1-scatter agisce anche da ancora posizionale (relative) per i bottoni di zoom (absolute) */
+#l1-scatter {
+    width: 100%;
+    position: relative;
+}
+
+.scatter-dot { cursor: pointer; transition: r 0.12s, opacity 0.12s; }
+.scatter-dot:hover { opacity: 1 !important; }
+
+/* Finestra modale (Tooltip) agganciata alle coordinate del mouse sullo Scatter Plot L1 */
+.scatter-tooltip {
+    position: fixed;
+    background: rgba(20, 20, 30, 0.92);
+    color: #fff;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 9999;
+    max-width: 220px;
+    line-height: 1.55;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+    transition: opacity 0.1s;
+}
+.scatter-tooltip strong { color: #7ec8e3; display: block; margin-bottom: 2px; }
+.scatter-tooltip .tt-row { color: #ccc; }
+.scatter-highlight { stroke: #ff9f40 !important; stroke-width: 2.5px !important; r: 7 !important; }
+
+.l1-table-wrap {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+.l1-table-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+.l1-badge {
+    font-size: 11px;
+    font-weight: 600;
+    color: #1f77b4;
+    background: #e8f2fb;
+    padding: 2px 10px;
+    border-radius: 20px;
+    letter-spacing: 0.03em;
+}
+.l1-table-scroll {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-y: auto;
+    border-radius: 4px;
+    border: 1px solid #eee;
+}
+#l1-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9.5px;
+    table-layout: auto;
+}
+/* Header della tabella resi "sticky" (bloccati in alto) per consentire lo scorrimento dei record sotto */
+#l1-table thead th {
+    position: sticky;
+    top: 0;
+    background: #f7f8fa;
+    border-bottom: 2px solid #e0e4eb;
+    padding: 5px 3px;
+    text-align: left;
+    font-size: 8.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #666;
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+    transition: background 0.1s;
+}
+#l1-table thead th:hover { background: #eef1f7; color: #1f77b4; }
+#l1-table thead th.sort-asc::after  { content: ' ↑'; color: #1f77b4; }
+#l1-table thead th.sort-desc::after { content: ' ↓'; color: #1f77b4; }
+#l1-table tbody tr { border-bottom: 1px solid #f0f0f0; cursor: pointer; transition: background 0.1s; }
+#l1-table tbody tr:hover { background: #f0f6ff; }
+#l1-table tbody tr.row-highlighted { background: #fff3e0 !important; }
+#l1-table th:nth-child(1), #l1-table td:nth-child(1) { max-width: 70px; overflow: hidden; text-overflow: ellipsis; }
+#l1-table th:nth-child(2), #l1-table td:nth-child(2) { max-width: 30px; text-align: center; overflow: hidden; text-overflow: ellipsis; }
+#l1-table th:nth-child(5), #l1-table td:nth-child(5) { max-width: 65px; overflow: hidden; text-overflow: ellipsis; }
+#l1-table th:nth-child(6), #l1-table td:nth-child(6),
+#l1-table th:nth-child(7), #l1-table td:nth-child(7) { max-width: 45px; text-align: center; }
+#l1-table tbody td {
+    padding: 4px 3px;
+    color: #333;
+    white-space: nowrap;
+    max-width: 130px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.cell-positive { color: #16a34a; font-weight: 700; }
+.cell-negative { color: #dc2626; font-weight: 700; }
+
+@keyframes pulse-highlight {
+    0%   { stroke-width: 4px; opacity: 1; }
+    50%  { stroke-width: 7px; opacity: 0.7; }
+    100% { stroke-width: 4px; opacity: 1; }
+}
+
+.scatter-controls {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    display: flex;
+    gap: 3px;
+    z-index: 10;
+}
+
+.scatter-ctrl-btn {
+    width: 22px;
+    height: 22px;
+    border: 1px solid #d0d5dd;
+    border-radius: 5px;
+    background: rgba(255,255,255,0.92);
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+    transition: background 0.1s, color 0.1s;
+    color: #555;
+}
+.scatter-ctrl-btn:hover { background: #f0f4ff; color: #1f77b4; border-color: #1f77b4; }
+
+/* =========================================
+   5. PARALLEL COORDINATES PLOT (PCP) E LEGENDE
+   ========================================= */
+.pcp-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 8px 2px;
+}
+
+#pcp-container {
+    width: 100%;
+    height: 210px;
+    position: relative;
+}
+
+.pcp-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    padding: 6px 8px 0;
+    font-size: 10px;
+    color: #555;
+    border-top: 1px solid #eee;
+    margin-top: 4px;
+}
+.pcp-legend-item { display: flex; align-items: center; gap: 4px; }
+.pcp-legend-swatch { width: 12px; height: 4px; border-radius: 2px; }
+
+.median-line { stroke-dasharray: 4,3; stroke-width: 1.5px; pointer-events: none; }
+
+/* Curve KDE (split density) su ogni asse del PCP */
+.pcp-kde-treated { fill: rgba(31,119,180,0.35); stroke: rgba(31,119,180,0.85); stroke-width: 1px; }
+.pcp-kde-untreated { fill: rgba(85,85,85,0.35); stroke: rgba(85,85,85,0.85); stroke-width: 1px; }
+/* Label coefficiente di similarità sopra ogni asse */
+.pcp-sim-label {
+    font-size: 8px;
+    font-weight: 700;
+    text-anchor: middle;
+    pointer-events: none;
+    fill: #888;
+}
+
+.chart-title-row { display: flex; align-items: center; gap: 6px; }
+/* Indicatore a barra della divergenza calcolata sotto ogni istogramma L0 */
+.divergence-bar-wrap { flex: 1; height: 4px; background: #eee; border-radius: 2px; max-width: 80px; }
+.divergence-bar-fill { height: 100%; background: #1f77b4; border-radius: 2px; transition: width 0.2s; }
+.divergence-val { font-size: 9px; color: #999; min-width: 24px; text-align: right; }
+
+/* Micro-barre bicolore del Degree of Interest integrate direttamente all'interno delle righe tabella L1 */
+.doi-cell { display: flex; align-items: center; gap: 4px; }
+.doi-bar { height: 6px; background: #1f77b4; border-radius: 3px; min-width: 2px; max-width: 60px; }
+
+/* Involucro e personalizzazione estetica degli slider per bilanciare Alfa e Beta nel DoI */
+.doi-sliders-wrap {
+    display: flex; align-items: center; gap: 10px;
+    padding: 4px 8px; font-size: 11px; color: #555;
+    border-bottom: 1px solid #f0f0f0; margin-bottom: 4px;
+}
+.doi-sliders-wrap label { display: flex; align-items: center; gap: 4px; }
+.doi-sliders-wrap input[type=range] { width: 70px; accent-color: #1f77b4; }
+
+.reclassified-badge {
+    display: inline-block; margin-top: 4px;
+    font-size: 10px; font-weight: 600; color: #92400e;
+    background: #fef3c7; padding: 1px 8px; border-radius: 20px;
+}
+
+/* =========================================
+   6. HIGHLIGHT E INTERAZIONI VISIVE INCROCIATE
+   ========================================= */
+.row-exact-highlight {
+    background-color: #fde68a !important; /* Stronger amber background */
+    outline: 2px solid #f59e0b !important; /* Amber-500 */
+    outline-offset: -2px;
+}
+.dot-exact-highlight { fill: #f59e0b !important; stroke: #b45309 !important; stroke-width: 2.5px !important; }
+
+.clip-note {
+    display: block;
+    font-size: 9px;
+    color: #bbb;
+    font-style: italic;
+    letter-spacing: 0.02em;
+    margin-top: 1px;
+    text-align: right;
+}
+
+/* Trasparenza per le barre principali (blu) per lasciar trasparire quelle grigie in secondo piano */
+.dc-chart rect.bar {
+    fill-opacity: 0.75;
+}
+
+/* dc.js colora di grigio le barre fuori dal brush — override per mantenerle blu */
+.dc-chart rect.bar.deselected {
+  fill: #8eb1d4;
+  fill-opacity: 0.45;
+}
+
+/* =========================================
+   7. LEVEL 2 — SPILLOVER FILTER PANEL
+   ========================================= */
+
+/* Pannello filtri L2 (sostituisce il PCP nella colonna sinistra) */
+.l2-filter-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #fff;
+  border-radius: 8px;
+  padding: 8px 10px 10px;
+  flex-shrink: 0;
+  color: #333;
+  border: 1px solid #d0d5dd;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  overflow: hidden;
+}
+
+/* Header con back-btn e titolo */
+.l2-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.l2-panel-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #555;
+}
+
+/* Info box del target */
+.l2-info-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  padding: 8px 10px;
+  flex-shrink: 0;
+}
+.l2-info-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #555;
+  margin-bottom: 2px;
+}
+.l2-info-road {
+  font-size: 12px;
+  font-weight: 700;
+  color: #b45309; /* amber-700 — legible gold on white */
+  margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.l2-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 10px;
+}
+.l2-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.l2-info-key {
+  font-size: 8.5px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: #7a8099;
+}
+.l2-info-val {
+  font-size: 11px;
+  font-weight: 600;
+  color: #333;
+}
+
+/* Sezioni Cohort A / Cohort B */
+.l2-section {
+  background: #fff;
+  border-radius: 7px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex-shrink: 0;
+  border: 1px solid #eee;
+}
+.l2-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: #555;
+}
+.l2-section-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.l2-cohort-badge {
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 600;
+  color: #777;
+  background: #f0f0f0;
+  padding: 1px 7px;
+  border-radius: 20px;
+}
+
+/* Righe controllo */
+.l2-control-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.l2-ctrl-label {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #555;
+  min-width: 64px;
+  padding-top: 3px;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+/* Slider semplice (radius, AADT threshold, correlation) */
+.l2-slider-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.l2-slider-val {
+  font-size: 10px;
+  font-weight: 700;
+  color: #1f77b4;
+  text-align: right;
+}
+.l2-slider {
+  width: 100%;
+  height: 4px;
+  accent-color: #1f77b4;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 2px;
+  background: #ddd;
+}
+.l2-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #1f77b4;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  cursor: pointer;
+}
+.l2-slider-track-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 8px;
+  color: #999;
+}
+
+/* Dual range slider (crash Δ%, AADT Δ%) */
+.l2-dual-range-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.l2-dual-val {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #555;
+  min-width: 36px;
+  text-align: center;
+}
+.l2-dual-track {
+  position: relative;
+  flex: 1;
+  height: 20px;
+  display: flex;
+  align-items: center;
+}
+.l2-dual-track::before {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  height: 4px;
+  background: #ddd;
+  border-radius: 2px;
+}
+.l2-dual-fill {
+  position: absolute;
+  height: 4px;
+  background: #1f77b4;
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 1;
+}
+.l2-dual-slider {
+  position: absolute;
+  width: 100%;
+  height: 4px;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  pointer-events: none;
+  z-index: 2;
+}
+.l2-dual-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #1f77b4;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  pointer-events: all;
+  cursor: pointer;
+  transition: transform .1s;
+}
+.l2-dual-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+/* Toggle group 1yr/2yr/3yr */
+.l2-toggle-group {
+  display: flex;
+  gap: 4px;
+}
+.l2-toggle-btn {
+  padding: 3px 10px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  color: #777;
+  cursor: pointer;
+  transition: all .15s;
+}
+.l2-toggle-btn:hover { background: #f0f4ff; border-color: #1f77b4; color: #1f77b4; }
+.l2-toggle-btn.active { background: #1f77b4; border-color: #1f77b4; color: #fff; }
+
+/* Apply Filters button */
+.l2-apply-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 0;
+  background: linear-gradient(135deg, #1f77b4 0%, #0d5a9f 100%);
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(31,119,180,0.35);
+  transition: transform .12s, box-shadow .12s;
+  flex-shrink: 0;
+}
+.l2-apply-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 16px rgba(31,119,180,0.45);
+}
+.l2-apply-btn:active { transform: translateY(0); }
+.l2-apply-btn:disabled { opacity: .6; cursor: wait; transform: none; }
+.l2-apply-icon { font-size: 14px; line-height: 1; }
+
+/* Spillover button (in L1 area) */
+.spillover-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  background: linear-gradient(135deg, #1f77b4 0%, #0d5a9f 100%);
+  border: none;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(31,119,180,0.35);
+  transition: transform .12s, box-shadow .12s;
+  flex-shrink: 0;
+  letter-spacing: .03em;
+  white-space: nowrap;
+}
+.spillover-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(31,119,180,0.45);
+}
+
+/* L2 Map Tooltip */
+.l2-map-tooltip {
+  position: fixed;
+  background: #fff;
+  color: #333;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 9999;
+  max-width: 240px;
+  line-height: 1.55;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  border: 1px solid #ddd;
+}
+.l2-map-tooltip strong { color: #1f77b4; display: block; margin-bottom: 3px; font-size: 13px; }
+.l2-tt-row { display: block; color: #666; font-size: 11px; }
+.l2-tt-row b { color: #333; }
+
+/* Override back-btn for L2's dark panel */
+.l2-filter-panel .back-btn {
+  background: #f0f0f0;
+  border-color: #ddd;
+  color: #555;
+  flex-shrink: 0;
+}
+.l2-filter-panel .back-btn:hover {
+  background: #e0e0e0;
+  color: #333;
+}
+
+/* ── Loading overlay ────────────────────────────────────────────────────────── */
+.l2-loading-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  background: rgba(248, 250, 252, 0.6);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+.l2-filter-panel {
+  position: relative; /* needed for absolute overlay */
+}
+
+/* ── Target Segment Info — Map overlay (topright Leaflet control) ─────────── */
+.l2-target-map-info {
+  background: #fff;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  padding: 6px 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  min-width: 180px;
+}
+.l2-target-map-info .l2-info-label {
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #555;
+  margin-bottom: 2px;
+}
+.l2-target-map-info .l2-info-road {
+  font-size: 10px;
+  font-weight: 700;
+  color: #b45309; /* amber-700 — legible gold on white */
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 230px;
+}
+.l2-target-map-info .l2-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 6px;
+}
+.l2-target-map-info .l2-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0px;
+}
+.l2-target-map-info .l2-info-key {
+  font-size: 7.5px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #777;
+}
+.l2-target-map-info .l2-info-val {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #333;
+}
+.l2-loading-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.l2-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(148, 163, 184, 0.2);
+  border-top-color: #3b82f6; /* slate blue */
+  border-radius: 50%;
+  animation: l2-spin 0.8s linear infinite;
+}
+@keyframes l2-spin {
+  to { transform: rotate(360deg); }
+}
+.l2-loading-text {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+/* ── Right placeholder (empty right panel in L2) ────────────────────────────── */
+.l2-right-placeholder {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.15;
+}
+
+/* ── Colored slider accent variants ─────────────────────────────────────────── */
+.l2-slider-green { accent-color: #4caf50; }
+.l2-slider-green::-webkit-slider-thumb { background: #4caf50 !important; }
+
+.l2-slider-red   { accent-color: #f44336; }
+.l2-slider-red::-webkit-slider-thumb { background: #f44336 !important; }
+
+.l2-slider-cyan  { accent-color: #00bcd4; }
+.l2-slider-cyan::-webkit-slider-thumb { background: #00bcd4 !important; }
+
+.l2-slider-orange { accent-color: #ff9800; }
+.l2-slider-orange::-webkit-slider-thumb { background: #ff9800 !important; }
+
+/* ── Colored label variants ──────────────────────────────────────────────────── */
+.l2-label-green  { color: #66bb6a !important; }
+.l2-label-red    { color: #ef5350 !important; }
+.l2-label-cyan   { color: #26c6da !important; }
+.l2-label-orange { color: #ffa726 !important; }
+.l2-ctrl-label small { font-size: 8px; font-weight: 400; opacity: 0.75; }
+
+/* ── Updated target color for light theme ──────────────────────────────────── */
+.l2-info-box { border-color: #e2e8f0; background: #f8fafc; }
+.l2-info-label { color: #555; }
+.l2-info-road  { color: #FFD600; -webkit-text-stroke: 0.5px #000; } /* matches target segment map color */
+.l2-panel-title { color: #555; }
+.l2-apply-btn {
+  background: linear-gradient(135deg, #1f77b4 0%, #0d5a9f 100%);
+  color: #fff;
+  box-shadow: 0 3px 10px rgba(31,119,180,0.35);
+}
+.l2-apply-btn:hover { box-shadow: 0 5px 16px rgba(31,119,180,0.45); }
+.l2-toggle-btn.active { background: #1f77b4; border-color: #1f77b4; color: #fff; }
+.l2-toggle-btn:hover  { background: #f0f4ff; border-color: #1f77b4; color: #1f77b4; }
+.l2-slider { accent-color: #1f77b4; }
+.l2-slider::-webkit-slider-thumb { background: #1f77b4 !important; }
+.spillover-btn { background: linear-gradient(135deg, #1f77b4 0%, #0d5a9f 100%); color: #fff; }
+

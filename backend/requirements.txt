@@ -1,0 +1,6 @@
+flask
+flask-cors
+geopandas
+pandas
+pyarrow # per leggere il .parquet
+shapely

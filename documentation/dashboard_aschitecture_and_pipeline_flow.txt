@@ -1,0 +1,52 @@
+# Architettura e Flusso di Analisi della Dashboard
+
+Questa dashboard è strutturata su un flusso di analisi progressivo diviso in **3 Livelli (Level 0, 1 e 2)**. L'interfaccia è progettata per guidare l'utente da una visione macroscopica dell'intera rete stradale fino all'analisi microscopica di un singolo intervento stradale.
+
+Le due macro-domande (Goal) a cui la dashboard vuole rispondere sono:
+1. **Goal 1 (Level 0)**: *Cosa spinge le autorità a fare un intervento in un determinato punto?* Ci sono correlazioni socio-economiche (es. reddito, densità) o stradali (es. limiti di velocità) tra chi riceve un intervento e chi no?
+2. **Goal 2 (Level 1 & 2)**: *Quanto è stato efficace l'intervento?* Ha realmente ridotto gli incidenti (valutato tramite il Risk Rate, che normalizza per traffico e stagionalità) o li ha semplicemente "spostati" nelle strade vicine o in strade simili lontane (effetto Spillover)?
+
+---
+
+## Level 0: Macro Network Analysis (L'intero ecosistema)
+
+**Obiettivo (Goal):** Comprendere i driver decisionali dietro l'installazione degli interventi. Confrontare le strade trattate con quelle non trattate (controllo) per scovare i pattern socio-demografici e di traffico.
+
+**User Intent & Tasks:**
+- L'utente vuole capire il contesto globale della rete stradale.
+- *Task 1*: Osservare le distribuzioni nel **Parallel Coordinates Plot (PCP)** per esplorare pattern socio-demografici (es. reddito, densità). Il PCP elabora internamente i dati deduplicandoli al volo per segmento (RCSTA), garantendo che l'analisi di rete non sia falsata da strade con interventi multipli. È presente un tooltip interattivo sugli assi che mostra le statistiche (Media e Range) ricalcolate dinamicamente per i gruppi Treated/Untreated, nascondendo automaticamente i gruppi vuoti. Inoltre, filtrando per Tipologia di Intervento, i segmenti non trattati (Untreated) vengono completamente esclusi (sfumati visivamente e rimossi dalle curve di densità KDE e dai tooltip).
+- *Task 2*: Filtrare gli interventi in base all'anno di installazione o alla tipologia (es. selezionare solo i *Pedestrian Crossing*).
+- *Task 3*: Usare gli istogrammi incrociati (Crossfilter) per isolare segmenti in base a metriche come Risk Rate, Severity Rate o Traffic Index pre-intervento.
+
+**Transizione al Level 1:**
+Dopo aver esplorato i dati e applicato i filtri desiderati (sul PCP, sugli istogrammi o sul grafico a barre), l'utente ha isolato una **coorte specifica** di interventi (es. "Tutti gli incroci pedonali fatti nel 2019 in aree a basso reddito").
+Cliccando sul pulsante **"Analyze X interventions"**, l'utente passa dal livello esplorativo globale al livello valutativo di quel gruppo specifico.
+
+---
+
+## Level 1: Filtered Cohort Overview (Valutazione del Gruppo)
+
+**Obiettivo (Goal):** Avere una visione d'insieme delle performance del gruppo di interventi appena filtrato. Capire mediamente se hanno funzionato e individuare casi anomali (outliers).
+
+**User Intent & Tasks:**
+- L'utente vuole vedere i risultati pre/post intervento per la coorte selezionata, senza il "rumore" del resto della rete.
+- *Task 1*: Osservare lo **Scatter Plot** (Crash Reduction % vs AADT Reduction %). Questo grafico è vitale per individuare anomalie. Ad esempio, un segmento in cui gli incidenti sono calati del 50% ma il traffico (AADT) è calato del 40% non indica un intervento miracoloso, ma semplicemente che la strada è meno trafficata. Inoltre, il **PCP** rimane visibile per riferimento incrociato, ed è possibile ispezionarne gli assi tramite il tooltip interattivo, proprio come nel L0 (grazie a una "hover area" invisibile ingrandita che cattura il cursore del mouse in L1).
+- *Task 2*: Esplorare la **Tabella Dettagliata** per ordinare i segmenti in base ai Risk Rate pre-intervento (incidenti normalizzati prima dell'intervento) assoluti o in base al DoI (Degree of Intervention).
+- *Task 3*: Individuare il segmento perfetto per un'analisi approfondita (magari uno che ha avuto un forte calo del Risk Rate percentuale).
+
+**Transizione al Level 2:**
+L'utente clicca su una riga della tabella o su un punto dello scatter plot. Questa azione isola quel singolo segmento stradale (Target) e avvia un'analisi di Efficacia (Effectiveness Analysis), portando l'utente al Level 2.
+
+---
+
+## Level 2: Micro/Local Effectiveness Analysis
+
+**Obiettivo (Goal):** Valutare l'efficacia reale e l'effetto "Spillover" (travaso) di un singolo intervento. Verificare se l'intervento ha reso la zona più sicura, o se i guidatori hanno semplicemente cambiato percorso, spostando il rischio (misurato in Risk Rate) nelle strade adiacenti o in zone simili.
+
+**User Intent & Tasks:**
+- L'utente analizza chirurgicamente il comportamento pre e post del Target e delle strade circostanti (Cohort A) attraverso il **Risk Rate**.
+- *Task 1*: **Analisi del Target**. Controllare nella scheda Target Segment Info (situata nella riga superiore dell'L2 Filter Panel) le statistiche pre/post del Risk Rate e la sua riduzione percentuale, e verificare nel **Lineplot Temporale** l'andamento mese per mese del Risk Rate. I tooltip interattivi sul lineplot mostrano i valori esatti in uno stile tabellare unificato con il resto della dashboard.
+- *Task 2*: **Local Analysis (Local Segments - Vicini)**. Tramite lo slider del raggio (Radius), l'utente allarga o stringe la zona di influenza. L'applicazione dei filtri tramite slider è **automatica** e in tempo reale (nessun bottone "Apply" richiesto). L'obiettivo è scovare strade adiacenti che hanno avuto un **aumento** del Risk Rate (Spillover locale). I segmenti esclusi dai filtri vengono sfumati col colore "No change / Filtered out".
+- *Task 3*: **Future Pre/Post Analysis**. Esplorare in dettaglio i dati puntuali degli eventi (es. tipi di incidenti, tipi di vittime o distribuzione temporale tramite scatterplot) per il target e i vicini attraverso l'apposito pannello interattivo situato nella colonna destra.
+
+In sintesi, il Level 2 è lo strumento investigativo finale per rispondere alla domanda: *"L'intervento ha realmente migliorato la sicurezza stradale al netto del traffico, o ha semplicemente scaricato il traffico e il rischio sui quartieri limitrofi?"*
