@@ -8,7 +8,10 @@ This repository hosts a full-stack, interactive dashboard designed to evaluate t
 
 ## 📺 Dashboard Demonstration
 
-https://github.com/FedericoTrionfetti/Interactive-Dashboard-NYC-Streets_Multi-Level-Evaluating-Urban-Traffic-Calming-and-Spatial-Spillover/raw/main/documentation/dashboard_demo.mp4
+![Demo Part 1](documentation/demo_part1.gif)
+![Demo Part 2](documentation/demo_part2.gif)
+![Demo Part 3](documentation/demo_part3.gif)
+![Demo Part 4](documentation/demo_part4.gif)
 
 ---
 
