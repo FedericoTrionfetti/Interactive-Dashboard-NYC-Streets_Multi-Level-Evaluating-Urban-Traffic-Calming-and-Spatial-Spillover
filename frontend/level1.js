@@ -5,7 +5,8 @@
 function computeDoI(data) {
   const activeYear = (document.getElementById('time-window-select') || {}).value || '1';
   const c = 100;
-  const beta = 2.5;
+  const betaSlider = document.getElementById('doi-beta-slider');
+  const beta = betaSlider ? parseFloat(betaSlider.value) : 2.5;
 
   data.forEach(d => {
     // Use pct-scaled versions (already multiplied by 100 server-side)
@@ -87,8 +88,30 @@ function updateSummaryStats(ndxT, treatedData, untreatedData) {
       filtersText.push(`${title} (${activeYear}y): [${f[0].toFixed(1)} - ${f[1].toFixed(1)}]`);
     }
   });
-  if (_pcpDim && pc && pc.brushed() && pc.brushed().length > 0 && pc.brushed().length < (_allPcData || []).length)
-    filtersText.push(`PCP Active`);
+  if (_pcpDim && pc && pc.brushed() && pc.brushed().length > 0 && pc.brushed().length < (_allPcData || []).length) {
+    if (typeof pc.brushExtents === 'function') {
+      const extents = pc.brushExtents();
+      const dims = typeof pc.dimensions === 'function' ? pc.dimensions() : {};
+      const pcpFilters = [];
+      for (const [key, extObj] of Object.entries(extents)) {
+        let ext = extObj;
+        if (ext && ext.selection && ext.selection.scaled) ext = ext.selection.scaled;
+        else if (ext && Array.isArray(ext) && Array.isArray(ext[0])) ext = ext[0];
+        
+        if (Array.isArray(ext) && ext.length >= 2) {
+          const bMin = Math.min(ext[0], ext[1]);
+          const bMax = Math.max(ext[0], ext[1]);
+          const title = dims[key] && dims[key].title ? dims[key].title : key;
+          const fmtMin = Number.isInteger(bMin) ? bMin : bMin.toFixed(1);
+          const fmtMax = Number.isInteger(bMax) ? bMax : bMax.toFixed(1);
+          pcpFilters.push(`${title}: [${fmtMin} - ${fmtMax}]`);
+        }
+      }
+      if (pcpFilters.length > 0) {
+        filtersText.push(`PCP: ${pcpFilters.join(', ')}`);
+      }
+    }
+  }
   const tlMin = document.getElementById('tl-slider-min')?.value;
   const tlMax = document.getElementById('tl-slider-max')?.value;
   if (tlMin && tlMax && (+tlMin > globalYearMin || +tlMax < globalYearMax))
@@ -97,7 +120,20 @@ function updateSummaryStats(ndxT, treatedData, untreatedData) {
   const afBar = document.getElementById('active-filters-bar');
   if (afBar) {
     afBar.style.display = 'block';
-    afBar.innerHTML = `<strong>Active Filters:</strong> ${filtersText.join(' &nbsp;|&nbsp; ')}`;
+    const textStr = filtersText.join(' &nbsp;|&nbsp; ');
+    afBar.innerHTML = `<strong>Active Filters:</strong> ${textStr}`;
+    
+    const rawLen = filtersText.join(' | ').length;
+    if (rawLen > 180) {
+      afBar.style.fontSize = '8.5px';
+      afBar.style.lineHeight = '11px';
+    } else if (rawLen > 110) {
+      afBar.style.fontSize = '9.2px';
+      afBar.style.lineHeight = '12px';
+    } else {
+      afBar.style.fontSize = '10px';
+      afBar.style.lineHeight = '14px';
+    }
   }
 }
 
@@ -148,7 +184,7 @@ function enterL1(activeRows, rcstaSet) {
   })
     .then(r => r.json())
     .then(data => { 
-      computeDoI(data); buildL1Scatter(data); buildL1Table(data); 
+      computeDoI(data); buildL1Scatter(data); buildL1Table(data); updateL1OverallStats(data);
       if (ov) ov.style.display = 'none';
     })
     .catch(err => {
@@ -163,16 +199,10 @@ function exitL1() {
   clearHighlight();
   _currentL1RCSTAs = null;
   document.getElementById('l1-panel').style.display = 'none';
+  document.getElementById('l1-overall-stats').style.display = 'none';
   document.getElementById('l0-panel').style.display = 'flex';
   document.getElementById('l1-actions').style.display = 'none';
 
-  dc.filterAll();
-  if (window._activeIntFilters) window._activeIntFilters.clear();
-  if (typeof _intDimTRef !== 'undefined' && _intDimTRef) _intDimTRef.filterAll();
-  d3.selectAll('.int-bar-rect').classed('active', false).attr('fill', '#1f77b4');
-  if (_pcpDim) _pcpDim.filterAll();
-  if (_pcpDimU) _pcpDimU.filterAll();
-  if (pc) pc.brushExtents({});
   dc.redrawAll();
 
   const btn = document.getElementById('analyze-btn');
@@ -275,11 +305,19 @@ function greyOutMapExcept(rcstaSet) {
 
 function buildL1Scatter(data) {
   _l1Data = data;
+
+  let currentZoom = d3.zoomIdentity;
+  const existingSvg = d3.select('#l1-scatter svg').node();
+  if (existingSvg) {
+    const t = d3.zoomTransform(existingSvg);
+    if (t) currentZoom = t;
+  }
+
   d3.select('#l1-scatter').selectAll('*').remove();
 
   const container = document.getElementById('l1-scatter');
   const W = container.clientWidth || 320;
-  const H = 210;
+  const H = 215;
   const M = { top: 14, right: 20, bottom: 38, left: 50 };
   const iW = W - M.left - M.right;
   const iH = H - M.top - M.bottom;
@@ -328,13 +366,10 @@ function buildL1Scatter(data) {
     });
 
   // Linee di riferimento (Y=0, X=0, bisettrice)
-  let zeroLine = null, xZeroLine = null;
-  if (yScale.domain()[0] < 0 && yScale.domain()[1] > 0)
-    zeroLine = plotArea.append('line').attr('x1', 0).attr('x2', iW)
-      .attr('y1', yScale(0)).attr('y2', yScale(0)).attr('stroke', '#ddd').attr('stroke-dasharray', '4,3').attr('stroke-width', 1);
-  if (xScale.domain()[0] < 0 && xScale.domain()[1] > 0)
-    xZeroLine = plotArea.append('line').attr('x1', xScale(0)).attr('x2', xScale(0))
-      .attr('y1', 0).attr('y2', iH).attr('stroke', '#ddd').attr('stroke-dasharray', '4,3').attr('stroke-width', 1);
+  let zeroLine = plotArea.append('line').attr('x1', 0).attr('x2', iW)
+    .attr('y1', yScale(0)).attr('y2', yScale(0)).attr('stroke', '#ddd').attr('stroke-dasharray', '4,3').attr('stroke-width', 1);
+  let xZeroLine = plotArea.append('line').attr('x1', xScale(0)).attr('x2', xScale(0))
+    .attr('y1', 0).attr('y2', iH).attr('stroke', '#ddd').attr('stroke-dasharray', '4,3').attr('stroke-width', 1);
   const diagLine = plotArea.append('line')
     .attr('x1', xScale(Math.max(xScale.domain()[0], yScale.domain()[0])))
     .attr('x2', xScale(Math.min(xScale.domain()[1], yScale.domain()[1])))
@@ -352,7 +387,7 @@ function buildL1Scatter(data) {
   tooltip.style.opacity = '0';
 
   // Punti scatter colorati per DoI
-  const maxDoiAbs = d3.max(data, d => Math.abs(d.doi || 0)) || 1;
+  const maxDoiAbs = 1; // absolute scale [-1, 1]
   const doiColorScale = d3.scaleDiverging(t => d3.interpolateRdYlGn(1 - t)).domain([-maxDoiAbs, 0, maxDoiAbs]);
 
   const plotData = data.filter(d =>
@@ -434,6 +469,9 @@ function buildL1Scatter(data) {
         .attr('y2', nY(Math.min(nX.domain()[1], nY.domain()[1])));
     });
   svg.call(zoom);
+  if (currentZoom && currentZoom !== d3.zoomIdentity) {
+    svg.call(zoom.transform, currentZoom);
+  }
   svg.on('dblclick.zoom', () => svg.transition().duration(350).call(zoom.transform, d3.zoomIdentity));
 
   // Pulsanti zoom +/−/reset
@@ -494,6 +532,49 @@ function buildL1Table(data) {
   });
 }
 
+function updateL1OverallStats(data) {
+  const elCrash = document.getElementById('l1-overall-crash-var');
+  const elRisk = document.getElementById('l1-overall-risk-var');
+  const container = document.getElementById('l1-overall-stats');
+  if (!elCrash || !elRisk || !container) return;
+
+  if (!data || data.length === 0) {
+    elCrash.innerHTML = '—';
+    elRisk.innerHTML = '—';
+    container.style.display = 'none';
+    return;
+  }
+
+  container.style.display = 'flex';
+
+  const activeYear = (document.getElementById('time-window-select') || {}).value || '1';
+  const xField = `reduction_norm_${activeYear}y_pct`;
+  const yField = `reduction_norm_aadt_${activeYear}y_pct`;
+
+  let sumCrash = 0, validCrash = 0;
+  let sumRisk = 0, validRisk = 0;
+
+  data.forEach(d => {
+    if (d[xField] != null && isFinite(+d[xField])) {
+      sumCrash += -(+d[xField]);
+      validCrash++;
+    }
+    if (d[yField] != null && isFinite(+d[yField])) {
+      sumRisk += -(+d[yField]);
+      validRisk++;
+    }
+  });
+
+  const avgCrash = validCrash > 0 ? (sumCrash / validCrash) : 0;
+  const avgRisk = validRisk > 0 ? (sumRisk / validRisk) : 0;
+
+  elCrash.innerHTML = `${avgCrash > 0 ? '+' : ''}${avgCrash.toFixed(1)}%`;
+  elCrash.style.color = avgCrash > 0 ? '#ef4444' : (avgCrash < 0 ? '#10b981' : '#1e293b');
+
+  elRisk.innerHTML = `${avgRisk > 0 ? '+' : ''}${avgRisk.toFixed(1)}%`;
+  elRisk.style.color = avgRisk > 0 ? '#ef4444' : (avgRisk < 0 ? '#10b981' : '#1e293b');
+}
+
 function renderTable(data) {
   const col = _tableSortCol;
   const asc = _tableSortAsc;
@@ -547,7 +628,7 @@ function renderTable(data) {
     }
   });
 
-  const maxDoiTbl = d3.max(sorted, d => Math.abs(d.doi || 0)) || 1;
+  const maxDoiTbl = 1; // absolute scale [-1, 1]
 
   // Barra colore inline per valori percentuali, normalizzata rispetto al maxPos/maxNeg
   const colorBar = (val, maxP, maxN) => {
@@ -659,7 +740,7 @@ function toggleLockRCSTA(rcsta, exactD = null) {
 }
 
 // Accende scatter + tabella + mappa + PCP per un dato RCSTA
-function highlightRCSTA(rcsta, exactD = null) {
+function highlightRCSTA(rcsta, exactD = null, scrollTable = false) {
   if (_highlightedRCSTA === rcsta && _highlightedExact === exactD) return;
   const prev = _highlightedRCSTA;
   _highlightedRCSTA = rcsta;
@@ -704,13 +785,22 @@ function highlightRCSTA(rcsta, exactD = null) {
   if (prev != null)
     (_rowIndex.get(prev) || []).forEach(r => r.classList.remove('row-highlighted', 'row-exact-highlight'));
   // Accende tabella nuova
+  let scrolled = false;
   (_rowIndex.get(rcsta) || []).forEach(r => {
     if (exactD != null && r._d === exactD) {
       r.classList.remove('row-highlighted');
       r.classList.add('row-exact-highlight');
+      if (scrollTable && !scrolled) {
+        r.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        scrolled = true;
+      }
     } else {
       r.classList.remove('row-exact-highlight');
       r.classList.add('row-highlighted');
+      if (scrollTable && exactD == null && !scrolled) {
+        r.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        scrolled = true;
+      }
     }
   });
 
@@ -781,14 +871,25 @@ window.showGlobalDoiTooltip = function(event, text) {
   }
   tt.textContent = text;
   tt.style.display = 'block';
-  tt.style.left = (event.clientX + 10) + 'px';
+  
+  const ttWidth = tt.offsetWidth || 50;
+  let leftPos = event.clientX + 10;
+  if (leftPos + ttWidth > window.innerWidth - 10) {
+    leftPos = event.clientX - ttWidth - 10;
+  }
+  tt.style.left = leftPos + 'px';
   tt.style.top = (event.clientY - 20) + 'px';
 };
 
 window.moveGlobalDoiTooltip = function(event) {
   const tt = document.getElementById('global-doi-tooltip');
   if (tt && tt.style.display !== 'none') {
-    tt.style.left = (event.clientX + 10) + 'px';
+    const ttWidth = tt.offsetWidth || 50;
+    let leftPos = event.clientX + 10;
+    if (leftPos + ttWidth > window.innerWidth - 10) {
+      leftPos = event.clientX - ttWidth - 10;
+    }
+    tt.style.left = leftPos + 'px';
     tt.style.top = (event.clientY - 20) + 'px';
   }
 };
@@ -799,3 +900,46 @@ window.hideGlobalDoiTooltip = function() {
     tt.style.display = 'none';
   }
 };
+
+// Add event listener for DOI discordance weight slider
+document.addEventListener('DOMContentLoaded', () => {
+  const betaSlider = document.getElementById('doi-beta-slider');
+  const betaVal = document.getElementById('doi-beta-val');
+  if (betaSlider) {
+    betaSlider.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      if (betaVal) betaVal.textContent = Number.isInteger(val) ? val + '.0' : val.toFixed(1);
+      if (typeof _l1Data !== 'undefined' && _l1Data && _l1Data.length > 0) {
+        computeDoI(_l1Data);
+        
+        // Update scatter plot colors smoothly without rebuilding
+        if (typeof _scatterDots !== 'undefined' && _scatterDots) {
+           const maxDoiAbs = 1;
+           const doiColorScale = d3.scaleDiverging(t => d3.interpolateRdYlGn(1 - t)).domain([-maxDoiAbs, 0, maxDoiAbs]);
+           _scatterDots.attr('fill', d => d.doi != null ? doiColorScale(d.doi) : '#1f77b4');
+        }
+
+        // Rebuild table to update DOI bars and re-sort if necessary
+        buildL1Table(_l1Data);
+
+        // Re-apply highlight to the newly created table rows
+        if (typeof _lockedRCSTA !== 'undefined' && _lockedRCSTA != null) {
+           const rcsta = _lockedRCSTA;
+           const exactD = _lockedExact;
+           let scrolled = false;
+           if (typeof _rowIndex !== 'undefined' && _rowIndex.has(rcsta)) {
+             _rowIndex.get(rcsta).forEach(r => {
+               if (exactD != null && r._d === exactD) {
+                 r.classList.add('row-exact-highlight');
+                 if (!scrolled) { r.scrollIntoView({ behavior: 'smooth', block: 'center' }); scrolled = true; }
+               } else {
+                 r.classList.add('row-highlighted');
+                 if (exactD == null && !scrolled) { r.scrollIntoView({ behavior: 'smooth', block: 'center' }); scrolled = true; }
+               }
+             });
+           }
+        }
+      }
+    });
+  }
+});

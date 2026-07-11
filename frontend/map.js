@@ -366,7 +366,7 @@ function highlightMapFeatures(features) {
   if (highlightMapLayer) map.removeLayer(highlightMapLayer);
   if (!features || features.length === 0) return;
   highlightMapLayer = L.geoJSON({ type: 'FeatureCollection', features }, {
-    style: { color: '#ef4444', weight: 6, opacity: 1, fillOpacity: 0 },
+    style: { color: '#f59e0b', weight: 6, opacity: 1, fillOpacity: 0 },
     renderer: canvasRenderer
   }).addTo(map);
   highlightMapLayer.bringToFront();

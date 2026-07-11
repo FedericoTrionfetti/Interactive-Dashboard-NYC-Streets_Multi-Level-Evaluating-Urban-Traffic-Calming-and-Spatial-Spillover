@@ -37,17 +37,21 @@ const l2ChartAPost = new dc.BarChart('#l2-chart-a-post', 'l2Group');
 // Colore Cohort A in base alla variazione % del risk rate (CB RdYlGn 5 classi)
 function cohortAColor(reductionP) {
   if (!isFinite(reductionP)) return '#94a3b8';
-  if (reductionP > 100)  return '#d7191c';
-  if (reductionP > 50)   return '#fdae61';
-  if (reductionP > 0)    return '#ffffbf';
-  if (reductionP >= -50) return '#a6d96a';
-  return '#1a9641';
+  if (reductionP > 100)  return COLORS_L2_POSITIVE[4];
+  if (reductionP > 75)   return COLORS_L2_POSITIVE[3];
+  if (reductionP > 50)   return COLORS_L2_POSITIVE[2];
+  if (reductionP > 25)   return COLORS_L2_POSITIVE[1];
+  if (reductionP > 0)    return COLORS_L2_POSITIVE[0];
+  if (reductionP >= -25) return COLORS_L2_NEGATIVE[0];
+  if (reductionP >= -50) return COLORS_L2_NEGATIVE[1];
+  if (reductionP >= -75) return COLORS_L2_NEGATIVE[2];
+  return COLORS_L2_NEGATIVE[3];
 }
 
 // Colore Cohort B in base alla variazione AADT
 function cohortBColor(reductionP) {
   if (!isFinite(reductionP) || reductionP === 0) return '#94a3b8';
-  return reductionP < 0 ? '#d7191c' : '#1a9641';
+  return reductionP < 0 ? '#1a9850' : '#d73027';
 }
 
 // =============================================================================
@@ -188,22 +192,22 @@ function _l2RenderWithRadius(radiusM) {
                 const py = pad.t + h - (d.crashes / maxCrashes) * h;
                 const crashY = py - 6;
                 const aadtY  = Math.min(barY - 3, crashY - 10);
-                return { px, barY, py, bh, aadtY, crashY, aadtText: d.aadt >= 1000 ? (d.aadt / 1000).toFixed(1) + 'k' : d.aadt, crashes: d.crashes, year: d.year.slice(2) };
+                return { px, barY, py, bh, aadtY, crashY, aadtText: d.aadt >= 1000 ? Math.round(d.aadt / 1000) + 'k' : Math.round(d.aadt), crashes: d.crashes, year: d.year.slice(2) };
               });
 
               labels.forEach(L => {
-                svg += `<rect x="${L.px - barW/2}" y="${L.barY}" width="${barW}" height="${L.bh}" fill="#6baed6" opacity="0.8"></rect>`;
+                svg += `<rect x="${L.px - barW/2}" y="${L.barY}" width="${barW}" height="${L.bh}" fill="${COLOR_AADT_BARS}" opacity="0.8"></rect>`;
                 svg += `<text x="${L.px}" y="${pad.t + h + 10}" text-anchor="middle" fill="#475569" font-size="8px">${L.year}</text>`;
-                svg += `<text x="${L.px}" y="${L.aadtY}" text-anchor="middle" fill="#6baed6" font-size="7.5px" font-weight="bold">${L.aadtText}</text>`;
+                svg += `<text x="${L.px}" y="${L.aadtY}" text-anchor="middle" fill="${COLOR_AADT_BARS}" font-size="7.5px" font-weight="bold">${L.aadtText}</text>`;
               });
 
               let pathD = '';
               labels.forEach((L, i) => {
                 pathD += (i === 0 ? 'M' : 'L') + `${L.px},${L.py} `;
-                svg += `<circle cx="${L.px}" cy="${L.py}" r="2.5" fill="#756bb1" stroke="#fff" stroke-width="1"></circle>`;
-                svg += `<text x="${L.px}" y="${L.crashY}" text-anchor="middle" fill="#756bb1" stroke="#000" stroke-width="0.5" paint-order="stroke fill" font-size="8.5px" font-weight="bold">${L.crashes}</text>`;
+                svg += `<circle cx="${L.px}" cy="${L.py}" r="2.5" fill="${COLOR_CRASHES_LINE}" stroke="#fff" stroke-width="1"></circle>`;
+                svg += `<text x="${L.px}" y="${L.crashY}" text-anchor="middle" fill="${COLOR_CRASHES_LINE}" stroke="#000" stroke-width="0.5" paint-order="stroke fill" font-size="8.5px" font-weight="bold">${L.crashes}</text>`;
               });
-              svg += `<path d="${pathD}" fill="none" stroke="#756bb1" stroke-width="1.5"></path>`;
+              svg += `<path d="${pathD}" fill="none" stroke="${COLOR_CRASHES_LINE}" stroke-width="1.5"></path>`;
 
               if (_l2TargetData) {
                 const iy = String(_l2TargetData.installYear);
@@ -221,19 +225,21 @@ function _l2RenderWithRadius(radiusM) {
               return svg;
             };
 
-            return `<strong>RCSTA ${p.RCSTA}</strong>
+            const rName = p.road_name && p.road_name !== 'null' && p.road_name !== 'None' ? p.road_name : 'RCSTA ' + p.RCSTA;
+            return `<strong>${rName}</strong>
                     <span class="l2-tt-row">Risk Rate Var. %: <b>${d}</b></span>
                     <span class="l2-tt-row">Pre Risk Rate: ${pre} | Post: ${post}</span>
                     <span class="l2-tt-row">Distance: ${p.distance_m != null ? Math.round(p.distance_m) + ' m' : '—'}</span>
                     <div style="font-size:11px; font-weight:bold; margin-top:8px; display:flex; justify-content:space-between;">
-                      <span style="color:#756bb1;">Crashes</span><span style="color:#6baed6;">AADT</span>
+                      <span style="color:${COLOR_CRASHES_LINE};">Crashes</span><span style="color:${COLOR_AADT_BARS};">AADT</span>
                     </div>
                     ${getAnnualSparklineSVG(p.aadt_array, p.ncrashes_array, p.ts_array)}`;
           });
         } else {
-          _bindL2Tooltip(layer, feature, 3, 5, 0.35, p =>
-            `<strong>RCSTA ${p.RCSTA}</strong><span class="l2-tt-row">Filtered Out (Unselected)</span><span class="l2-tt-row">Distance: ${p.distance_m != null ? Math.round(p.distance_m) + ' m' : '—'}</span>`
-          );
+          _bindL2Tooltip(layer, feature, 3, 5, 0.35, p => {
+            const rName = p.road_name && p.road_name !== 'null' && p.road_name !== 'None' ? p.road_name : 'RCSTA ' + p.RCSTA;
+            return `<strong>${rName}</strong><span class="l2-tt-row">Filtered Out (Unselected)</span><span class="l2-tt-row">Distance: ${p.distance_m != null ? Math.round(p.distance_m) + ' m' : '—'}</span>`;
+          });
         }
       },
     });
@@ -266,17 +272,20 @@ function _l2RenderWithRadius(radiusM) {
 
 function _l2GetLegendHtml() {
   return `
-    <div class="legend-title" style="font-size:10px; margin-bottom:2px;">L2 – Effectiveness</div>
-    <div class="legend-row" style="margin-bottom:1px;"><span class="legend-swatch" style="background:#FFD600;border:2px solid #FFD600;height:8px;"></span>Target segment</div>
-    <div class="legend-row" style="margin-bottom:4px;">Risk rate var. (neighbors)</div>
-    <div style="display:flex; flex-direction:column; gap:2px; margin-bottom: 4px;">
-      <div class="legend-row" style="margin-bottom:0;"><span class="legend-swatch" style="background:#d7191c;height:8px;"></span>&gt; 100%</div>
-      <div class="legend-row" style="margin-bottom:0;"><span class="legend-swatch" style="background:#fdae61;height:8px;"></span>50% to 100%</div>
-      <div class="legend-row" style="margin-bottom:0;"><span class="legend-swatch" style="background:#ffffbf;height:8px;"></span>0% to 50%</div>
-      <div class="legend-row" style="margin-bottom:0;"><span class="legend-swatch" style="background:#a6d96a;height:8px;"></span>-50% to 0%</div>
-      <div class="legend-row" style="margin-bottom:0;"><span class="legend-swatch" style="background:#1a9641;height:8px;"></span>&lt; -50%</div>
+    <div class="legend-title" style="font-size:10.5px; margin-bottom:4px; font-weight:700;">Risk Rate Variation</div>
+    <div class="legend-row" style="margin-bottom:3px; font-size:9.5px;"><span class="legend-swatch" style="background:#FFD600;border:1px solid #FFD600;height:7px;"></span>Target segment</div>
+    <div style="display:flex; flex-direction:column; gap:0px; margin-bottom: 4px;">
+      <div class="legend-row" style="margin-bottom:0; font-size:9.5px;"><span class="legend-swatch" style="background:${COLORS_L2_POSITIVE[4]};height:7px;"></span>&gt; 100%</div>
+      <div class="legend-row" style="margin-bottom:0; font-size:9.5px;"><span class="legend-swatch" style="background:${COLORS_L2_POSITIVE[3]};height:7px;"></span>75% to 100%</div>
+      <div class="legend-row" style="margin-bottom:0; font-size:9.5px;"><span class="legend-swatch" style="background:${COLORS_L2_POSITIVE[2]};height:7px;"></span>50% to 75%</div>
+      <div class="legend-row" style="margin-bottom:0; font-size:9.5px;"><span class="legend-swatch" style="background:${COLORS_L2_POSITIVE[1]};height:7px;"></span>25% to 50%</div>
+      <div class="legend-row" style="margin-bottom:0; font-size:9.5px;"><span class="legend-swatch" style="background:${COLORS_L2_POSITIVE[0]};height:7px;"></span>0% to 25%</div>
+      <div class="legend-row" style="margin-bottom:0; font-size:9.5px;"><span class="legend-swatch" style="background:${COLORS_L2_NEGATIVE[0]};height:7px;"></span>-25% to 0%</div>
+      <div class="legend-row" style="margin-bottom:0; font-size:9.5px;"><span class="legend-swatch" style="background:${COLORS_L2_NEGATIVE[1]};height:7px;"></span>-50% to -25%</div>
+      <div class="legend-row" style="margin-bottom:0; font-size:9.5px;"><span class="legend-swatch" style="background:${COLORS_L2_NEGATIVE[2]};height:7px;"></span>-75% to -50%</div>
+      <div class="legend-row" style="margin-bottom:0; font-size:9.5px;"><span class="legend-swatch" style="background:${COLORS_L2_NEGATIVE[3]};height:7px;"></span>-100% to -75%</div>
     </div>
-    <div class="legend-row" style="margin-bottom:1px;"><span class="legend-swatch" style="background:#556080;opacity:0.35;height:8px;"></span>Filtered out</div>
+    <div class="legend-row" style="margin-bottom:0; font-size:9.5px;"><span class="legend-swatch" style="background:#556080;opacity:0.35;height:7px;"></span>Filtered out</div>
   `;
 }
 
@@ -306,7 +315,7 @@ function _l2PopulateInfoBox(targetData, apiInfo, metaInfo) {
     let riskHtml = '—';
     if (preRR != null && postRR != null && redRR_pct != null && isFinite(redRR_pct)) {
       const pct   = -redRR_pct;
-      const color = pct < 0 ? '#1a9641' : '#d7191c';
+      const color = pct < 0 ? '#1a9850' : '#d73027';
       riskHtml = `<span style="color:${color};font-weight:700">${pct > 0 ? '+' : ''}${pct.toFixed(1)}%</span>`;
     }
 
@@ -321,7 +330,7 @@ function _l2PopulateInfoBox(targetData, apiInfo, metaInfo) {
     mapInfoEl.innerHTML = `
       <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px; white-space:nowrap;">
         <span style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:#555;">TARGET SEGMENT</span>
-        <span style="font-size:13px; font-weight:700; color:#FFD600; -webkit-text-stroke: 0.5px #000; overflow:hidden; text-overflow:ellipsis; max-width:180px;" title="${road}">${road}</span>
+        <span style="font-size:13px; font-weight:700; color:#eab308; overflow:hidden; text-overflow:ellipsis; max-width:180px;" title="${road}">${road}</span>
       </div>
       <div style="display:flex; justify-content:space-between; gap:12px; font-size:11px; margin-bottom:6px; white-space:nowrap;">
         <div><span style="color:#777;">RCSTA:</span> <span style="font-weight:600; color:#333;">${targetData.rcsta}</span></div>
@@ -443,9 +452,9 @@ function _l2BuildCrossfilter(data) {
   dimARadius = ndxA.dimension(f => f.properties.distance_m || 0);
 
   const configs = [
-    { chart: l2ChartARisk, ndx: ndxA, field: 'reduction_norm_aadt', domain: [-100, 100], binSize: 10,  color: '#756bb1' },
-    { chart: l2ChartAPre,  ndx: ndxA, field: 'risk_rate_pre',       domain: [0, 2.00],  binSize: 0.1, color: '#756bb1' },
-    { chart: l2ChartAPost, ndx: ndxA, field: 'risk_rate_post',      domain: [0, 2.00],  binSize: 0.1, color: '#756bb1' },
+    { chart: l2ChartARisk, ndx: ndxA, field: 'reduction_norm_aadt', domain: [-100, 100], binSize: 10,  color: '#1f77b4' },
+    { chart: l2ChartAPre,  ndx: ndxA, field: 'risk_rate_pre',       domain: [0, 2.00],  binSize: 0.1, color: '#1f77b4' },
+    { chart: l2ChartAPost, ndx: ndxA, field: 'risk_rate_post',      domain: [0, 2.00],  binSize: 0.1, color: '#1f77b4' },
   ];
 
   configs.forEach(cfg => {
@@ -596,13 +605,10 @@ function _buildL2StaticLayers(data) {
       renderer: canvasRenderer,
       onEachFeature: (feature, layer) => {
         _bindL2Tooltip(layer, feature, 7, 7, 1, p => {
-          const d = p.reduction_norm_aadt != null
-            ? (p.reduction_norm_aadt > 0 ? '+' : '') + p.reduction_norm_aadt.toFixed(1) : '—';
           return `<strong>${p.road_name || 'RCSTA ' + p.RCSTA}</strong>
                   <span class="l2-tt-row">⭐ TARGET</span>
                   <span class="l2-tt-row">Type: ${p.intervention || '—'}</span>
-                  <span class="l2-tt-row">Date: ${p.install_month}/${p.install_year}</span>
-                  <span class="l2-tt-row">Risk Rate Var. %: <b>${d}</b></span>`;
+                  <span class="l2-tt-row">Date: ${p.install_month}/${p.install_year}</span>`;
         });
       },
     }).addTo(map);
@@ -665,6 +671,12 @@ function exitL2() {
   }
 
   updateLegend();
+
+  // Restore the highlight on the map if a segment was locked
+  if (typeof clearHighlight === 'function') clearHighlight();
+  if (typeof highlightRCSTA === 'function' && typeof _lockedRCSTA !== 'undefined' && _lockedRCSTA != null) {
+    highlightRCSTA(_lockedRCSTA, typeof _lockedExact !== 'undefined' ? _lockedExact : null);
+  }
 }
 
 // =============================================================================

@@ -47,6 +47,10 @@ function initParCoords(data) {
     dc.redrawAll();
     if (_updateLinkedCharts) _updateLinkedCharts();
     _isBrushingPCP = false;
+
+    if (window._currentHoveredPcpDim) {
+      window._renderPcpTooltip(window._currentHoveredPcpDim);
+    }
   });
 
   _bindPcpTooltips();
@@ -101,7 +105,7 @@ window.highlightPCP = function(targetRecords) {
         const dens = baseDensT.map(base => ({ v: base.v, d: Math.min(kdeFn(base.v) * count, base.d) }));
         const areaR = d3.area().x0(0).x1(d => dSc(d.d)).y(d => yScale(d.v)).curve(d3.curveLinear);
         pathG.append('path').datum(dens).attr('class', 'pcp-hover-highlight')
-          .attr('d', areaR).attr('fill', '#ef4444').attr('stroke', '#dc2626')
+          .attr('d', areaR).attr('fill', '#f59e0b').attr('stroke', '#d97706')
           .attr('stroke-width', 2).attr('opacity', 1).style('pointer-events', 'none');
       }
 
@@ -111,7 +115,7 @@ window.highlightPCP = function(targetRecords) {
         const dens = baseDensU.map(base => ({ v: base.v, d: Math.min(kdeFn(base.v) * count, base.d) }));
         const areaL = d3.area().x0(0).x1(d => -dSc(d.d)).y(d => yScale(d.v)).curve(d3.curveLinear);
         pathG.append('path').datum(dens).attr('class', 'pcp-hover-highlight')
-          .attr('d', areaL).attr('fill', '#ef4444').attr('stroke', '#dc2626')
+          .attr('d', areaL).attr('fill', '#f59e0b').attr('stroke', '#d97706')
           .attr('stroke-width', 2).attr('opacity', 1).style('pointer-events', 'none');
       }
     });
@@ -138,7 +142,7 @@ window.highlightPCP = function(targetRecords) {
       if (pts.length < 2) return;
       overlayG.append('path').datum(pts).attr('class', 'pcp-hover-highlight')
         .attr('d', lineGen).attr('fill', 'none')
-        .attr('stroke', '#ef4444').attr('stroke-width', 2.5)
+        .attr('stroke', '#f59e0b').attr('stroke-width', 2.5)
         .attr('opacity', 0.9).style('pointer-events', 'none');
     });
   }
@@ -148,6 +152,95 @@ window.clearPCPHighlight = function() {
   const svg = d3.select('#pcp-container svg');
   svg.selectAll('.pcp-hover-highlight').remove();
   svg.selectAll('.pcp-hover-highlight-group').remove();
+};
+
+window._currentHoveredPcpDim = null;
+
+window._renderPcpTooltip = function(dimName) {
+  if (!_allPcData || !dimName || typeof dimName !== 'string') return;
+  const tooltip = document.getElementById('pcp-axis-tooltip');
+  if (!tooltip) return;
+
+  let activeRows = scatterDimT.top(Infinity);
+  if (window._activeIntFilters && window._activeIntFilters.size > 0) {
+    activeRows = activeRows.filter(d => {
+      if (!d.intervention || d.intervention === 'null' || d.intervention === 'None') return false;
+      const parts = typeof d.intervention === 'string'
+        ? d.intervention.split('|').map(s => ABBR[s.trim()] || s.trim())
+        : [String(d.intervention)];
+      return parts.some(p => window._activeIntFilters.has(p));
+    });
+  }
+  const activeTIds = new Set(activeRows.map(d => d.RCSTA));
+  let activeUIds = new Set(scatterDimU.top(Infinity).map(d => d.RCSTA));
+  if (window._activeIntFilters && window._activeIntFilters.size > 0) activeUIds.clear();
+
+  const numTreated = _allPcData.filter(d => d.treated).length;
+  const numUntreated = _allPcData.length - numTreated;
+  const isFiltered = (activeTIds.size > 0 && activeTIds.size !== numTreated) ||
+                     (activeUIds.size > 0 && activeUIds.size !== numUntreated) ||
+                     (window._activeIntFilters && window._activeIntFilters.size > 0);
+
+  const groups = [
+    { name: 'Treated Selected',   color: COLORS_TREATED.selected,   data: [] },
+    { name: 'Treated Unselected', color: COLORS_TREATED.unselected, data: [] },
+    { name: 'Untreated Selected',   color: COLORS_UNTREATED.selected,   data: [] },
+    { name: 'Untreated Unselected', color: COLORS_UNTREATED.unselected, data: [] }
+  ];
+
+  _allPcData.forEach(d => {
+    let v = +d[dimName];
+    if (isNaN(v)) return;
+    if (d.treated) {
+      if (!isFiltered || activeTIds.has(d.RCSTA)) groups[0].data.push(v);
+      else groups[1].data.push(v);
+    } else {
+      if (!isFiltered || activeUIds.has(d.RCSTA)) groups[2].data.push(v);
+      else groups[3].data.push(v);
+    }
+  });
+
+  let html = `<div style="font-weight:700; margin-bottom:6px; color:#1e293b; border-bottom:1px solid #e2e8f0; padding-bottom:4px;">Axis: ${dimName}</div>`;
+  html += `<table style="width:100%; border-collapse:collapse; text-align:right; font-size:10px;">
+    <tr style="border-bottom:1px solid #f0f0f0; color:#64748b; font-size:9.5px;">
+      <th style="text-align:left; padding-right:12px; padding-bottom:4px;">Group</th>
+      <th style="padding:0 6px; padding-bottom:4px;">Mean</th>
+      <th style="padding-left:6px; padding-bottom:4px;">Range</th>
+    </tr>`;
+
+  let treatedRendered = false;
+  let untreatedBorderDone = false;
+
+  groups.forEach((g, idx) => {
+    const n = g.data.length;
+    if (n === 0) return;
+    if (idx < 2) treatedRendered = true;
+
+    g.data.sort((a, b) => a - b);
+    const mean = (d3.mean(g.data)).toFixed(1);
+    const range = `${d3.min(g.data).toFixed(1)} – ${d3.max(g.data).toFixed(1)}`;
+    
+    let trStyle = 'border-bottom:1px solid #f8fafc;';
+    let pt = '3px'; let pb = '3px';
+    if (idx >= 2 && treatedRendered && !untreatedBorderDone) {
+      trStyle = 'border-top:1px solid #e2e8f0; border-bottom:1px solid #f8fafc;';
+      pt = '5px';
+      untreatedBorderDone = true;
+    }
+
+    html += `<tr style="${trStyle}">
+      <td style="text-align:left; padding-right:12px; white-space:nowrap; color:#334155; font-weight:600; padding-top:${pt}; padding-bottom:${pb};">
+        <div style="display:inline-block; width:8px; height:8px; background:${g.color}; margin-right:6px; border-radius:1px;"></div>
+        ${g.name}
+      </td>
+      <td style="padding:0 6px; color:#1e293b; font-weight:700; padding-top:${pt}; padding-bottom:${pb};">${mean}</td>
+      <td style="padding-left:6px; color:#64748b; padding-top:${pt}; padding-bottom:${pb};">${range}</td>
+    </tr>`;
+  });
+  html += '</table>';
+
+  tooltip.innerHTML = html;
+  tooltip.style.display = 'block';
 };
 
 function _bindPcpTooltips() {
@@ -168,90 +261,9 @@ function _bindPcpTooltips() {
     });
 
     dims.on('mouseenter', function (event, dimName) {
-        if (!_allPcData || !dimName || typeof dimName !== 'string') return;
-        const tooltip = document.getElementById('pcp-axis-tooltip');
-        if (!tooltip) return;
+        window._currentHoveredPcpDim = dimName;
+        window._renderPcpTooltip(dimName);
 
-        let activeRows = scatterDimT.top(Infinity);
-        if (window._activeIntFilters && window._activeIntFilters.size > 0) {
-          activeRows = activeRows.filter(d => {
-            if (!d.intervention || d.intervention === 'null' || d.intervention === 'None') return false;
-            const parts = typeof d.intervention === 'string'
-              ? d.intervention.split('|').map(s => ABBR[s.trim()] || s.trim())
-              : [String(d.intervention)];
-            return parts.some(p => window._activeIntFilters.has(p));
-          });
-        }
-        const activeTIds = new Set(activeRows.map(d => d.RCSTA));
-        let activeUIds = new Set(scatterDimU.top(Infinity).map(d => d.RCSTA));
-        if (window._activeIntFilters && window._activeIntFilters.size > 0) activeUIds.clear();
-
-        const numTreated = _allPcData.filter(d => d.treated).length;
-        const numUntreated = _allPcData.length - numTreated;
-        const isFiltered = (activeTIds.size > 0 && activeTIds.size !== numTreated) ||
-                           (activeUIds.size > 0 && activeUIds.size !== numUntreated) ||
-                           (window._activeIntFilters && window._activeIntFilters.size > 0);
-
-        const groups = [
-          { name: 'Treated Selected',   color: '#1f77b4', data: [] },
-          { name: 'Treated Unselected', color: '#8eb1d4', data: [] },
-          { name: 'Untreated Selected',   color: '#555555', data: [] },
-          { name: 'Untreated Unselected', color: '#c7c7c7', data: [] }
-        ];
-
-        _allPcData.forEach(d => {
-          let v = +d[dimName];
-          if (isNaN(v)) return;
-          if (d.treated) {
-            if (!isFiltered || activeTIds.has(d.RCSTA)) groups[0].data.push(v);
-            else groups[1].data.push(v);
-          } else {
-            if (!isFiltered || activeUIds.has(d.RCSTA)) groups[2].data.push(v);
-            else groups[3].data.push(v);
-          }
-        });
-
-        let html = `<div style="font-weight:700; margin-bottom:6px; color:#1e293b; border-bottom:1px solid #e2e8f0; padding-bottom:4px;">Axis: ${dimName}</div>`;
-        html += `<table style="width:100%; border-collapse:collapse; text-align:right; font-size:10px;">
-          <tr style="border-bottom:1px solid #f0f0f0; color:#64748b; font-size:9.5px;">
-            <th style="text-align:left; padding-right:12px; padding-bottom:4px;">Group</th>
-            <th style="padding:0 6px; padding-bottom:4px;">Mean</th>
-            <th style="padding-left:6px; padding-bottom:4px;">Range</th>
-          </tr>`;
-
-        let treatedRendered = false;
-        let untreatedBorderDone = false;
-
-        groups.forEach((g, idx) => {
-          const n = g.data.length;
-          if (n === 0) return;
-          if (idx < 2) treatedRendered = true;
-
-          g.data.sort((a, b) => a - b);
-          const mean = (d3.mean(g.data)).toFixed(1);
-          const range = `${d3.min(g.data).toFixed(1)} – ${d3.max(g.data).toFixed(1)}`;
-          
-          let trStyle = 'border-bottom:1px solid #f8fafc;';
-          let pt = '3px'; let pb = '3px';
-          if (idx >= 2 && treatedRendered && !untreatedBorderDone) {
-            trStyle = 'border-top:1px solid #e2e8f0; border-bottom:1px solid #f8fafc;';
-            pt = '5px';
-            untreatedBorderDone = true;
-          }
-
-          html += `<tr style="${trStyle}">
-            <td style="text-align:left; padding-right:12px; white-space:nowrap; color:#334155; font-weight:600; padding-top:${pt}; padding-bottom:${pb};">
-              <div style="display:inline-block; width:8px; height:8px; background:${g.color}; margin-right:6px; border-radius:1px;"></div>
-              ${g.name}
-            </td>
-            <td style="padding:0 6px; color:#1e293b; font-weight:700; padding-top:${pt}; padding-bottom:${pb};">${mean}</td>
-            <td style="padding-left:6px; color:#64748b; padding-top:${pt}; padding-bottom:${pb};">${range}</td>
-          </tr>`;
-        });
-        html += '</table>';
-
-        tooltip.innerHTML = html;
-        tooltip.style.display = 'block';
       })
       .on('mousemove', function (event) {
         const tooltip = document.getElementById('pcp-axis-tooltip');
@@ -265,6 +277,7 @@ function _bindPcpTooltips() {
         }
       })
       .on('mouseleave', function () {
+        window._currentHoveredPcpDim = null;
         const tooltip = document.getElementById('pcp-axis-tooltip');
         if (tooltip) tooltip.style.display = 'none';
       });
@@ -376,8 +389,7 @@ function drawPCPDensities(activeTreated, allTreated, activeUntreated, allUntreat
   const dimDensities = {};
   window._dimDensities = dimDensities;
 
-  const nonNegativeKeys = new Set(['length_m', 'density', 'MHI', 'total_lanes', 'speed_limit']);
-  const clampPositive = (densArr) => densArr.map(d => ({ v: d.v, d: d.v < 0 ? 0 : d.d }));
+  const clampBounds = (densArr, dMin, dMax) => densArr.map(d => ({ v: d.v, d: (d.v < dMin || d.v > dMax) ? 0 : d.d }));
 
   dimKeys.forEach(key => {
     const dimGroup = d3.select('#pcp-container svg').selectAll('.dimension').filter(function (k) { return k === key; });
@@ -416,12 +428,25 @@ function drawPCPDensities(activeTreated, allTreated, activeUntreated, allUntreat
       densActU = samps.map((v, i) => ({ v, d: Math.min(kdeActU(v) * countActU, densAllU[i].d) }));
     }
 
-    if (nonNegativeKeys.has(key)) {
-      densAllT = clampPositive(densAllT);
-      densAllU = clampPositive(densAllU);
-      if (densActT) densActT = clampPositive(densActT);
-      if (densActU) densActU = clampPositive(densActU);
+    let bMin = dataMin, bMax = dataMax;
+    if (pc && typeof pc.brushExtents === 'function') {
+      const extents = pc.brushExtents();
+      if (extents && extents[key]) {
+        let ext = extents[key];
+        if (ext && ext.selection && ext.selection.scaled) ext = ext.selection.scaled;
+        else if (ext && Array.isArray(ext) && Array.isArray(ext[0])) ext = ext[0];
+        
+        if (Array.isArray(ext) && ext.length >= 2) {
+          bMin = Math.min(ext[0], ext[1]);
+          bMax = Math.max(ext[0], ext[1]);
+        }
+      }
     }
+
+    densAllT = clampBounds(densAllT, dataMin, dataMax);
+    densAllU = clampBounds(densAllU, dataMin, dataMax);
+    if (densActT) densActT = clampBounds(densActT, bMin, bMax);
+    if (densActU) densActU = clampBounds(densActU, bMin, bMax);
 
     dimDensities[key] = {
       yScale, densAllT, densAllU, densActT, densActU,
@@ -497,8 +522,7 @@ function drawPCPSimilarity(treatedData, untreatedData) {
   if (svg.empty()) return;
   svg.selectAll('.pcp-sim-label').remove();
   const dimPos = _getDimPositions();
-  const purples = ['#fcfbfd','#efedf5','#dadaeb','#bcbddc','#9e9ac8','#807dba','#6a51a3','#54278f','#3f007d'];
-  const simColorScale = d3.scaleQuantize().domain([0, 1]).range(purples);
+  const simColorScale = d3.scaleQuantize().domain([0, 1]).range(COLORS_SIMILARITY);
 
   Object.keys(pc.dimensions()).forEach(key => {
     const xPos = dimPos[key];
@@ -511,13 +535,46 @@ function drawPCPSimilarity(treatedData, untreatedData) {
     const barW = Math.max(2, bc * barMaxW);
     const labelGroup = svg.select('g').append('g')
       .attr('class', 'pcp-sim-label')
-      .attr('transform', `translate(${xPos}, -22)`);
-    labelGroup.append('rect').attr('x', -barMaxW / 2).attr('y', 0)
-      .attr('width', barMaxW).attr('height', 4).attr('fill', '#e0e4eb').attr('rx', 2);
-    labelGroup.append('rect').attr('x', -barMaxW / 2).attr('y', 0)
-      .attr('width', barW).attr('height', 4).attr('fill', simColorScale(bc)).attr('rx', 2);
-    labelGroup.append('text').attr('x', 0).attr('y', -3).attr('text-anchor', 'middle')
-      .style('font-size', '9px').style('font-weight', '700').style('fill', '#555')
+      .attr('transform', `translate(${xPos}, -38)`);
+
+    const textW = 18;
+    const gap = 4;
+    const padX = 4;
+    const boxH = 14;
+    const boxW = textW + gap + barMaxW + padX * 2;
+    
+    // Background box
+    labelGroup.append('rect')
+      .attr('x', -boxW / 2).attr('y', 0)
+      .attr('width', boxW).attr('height', boxH)
+      .attr('fill', '#f8fafc').attr('stroke', '#e2e8f0').attr('rx', 4);
+
+    // Text
+    labelGroup.append('text')
+      .attr('x', -boxW / 2 + padX)
+      .attr('y', boxH / 2 + 3)
+      .attr('text-anchor', 'start')
+      .style('font-size', '8px').style('font-weight', '700').style('fill', '#475569')
       .text(bc.toFixed(2));
+
+    // Bar background
+    const barStartX = -boxW / 2 + padX + textW + gap;
+    labelGroup.append('rect')
+      .attr('x', barStartX).attr('y', boxH / 2 - 2)
+      .attr('width', barMaxW).attr('height', 4).attr('fill', '#e2e8f0').attr('rx', 2);
+
+    // Bar foreground
+    labelGroup.append('rect')
+      .attr('x', barStartX).attr('y', boxH / 2 - 2)
+      .attr('width', barW).attr('height', 4).attr('fill', simColorScale(bc)).attr('rx', 2);
+
+    labelGroup.append('rect')
+      .attr('x', -boxW / 2).attr('y', 0)
+      .attr('width', boxW).attr('height', boxH)
+      .attr('fill', 'white')
+      .attr('fill-opacity', 0)
+      .style('cursor', 'default')
+      .style('pointer-events', 'all')
+      .append('title').text('Similarity (Treated vs Untreated)');
   });
 }

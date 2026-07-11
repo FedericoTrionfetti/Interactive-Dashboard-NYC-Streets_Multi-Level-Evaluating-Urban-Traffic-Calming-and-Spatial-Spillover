@@ -33,9 +33,9 @@ function buildInterventionBarChart(intCounts, intDimT, intGroupT) {
   window._intChartScales = { y, iH };
   window._intGroupTRef   = intGroupT;
 
-  const BG_COLOR    = '#8eb1d4';
-  const BAR_COLOR   = '#1f77b4';
-  const HOVER_COLOR = '#e45756';
+  const BG_COLOR    = COLORS_TREATED.unselected;
+  const BAR_COLOR   = COLORS_TREATED.selected;
+  const HOVER_COLOR = HIGHLIGHT;
 
   // Barre di sfondo (Total / Inactive)
   const bgBars = g.selectAll('.int-bar-bg').data(data).enter().append('rect')
@@ -158,7 +158,7 @@ function overlayIntTypeOnHistograms(hovType) {
       g.append('rect').attr('class', 'int-overlay-rect')
         .attr('x', bx).attr('y', effH - overlayH)
         .attr('width', bw).attr('height', overlayH)
-        .attr('fill', '#e45756').attr('rx', 1);
+        .attr('fill', '#f59e0b').attr('rx', 1);
     });
   });
 }

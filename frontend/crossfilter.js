@@ -190,7 +190,7 @@ function buildCrossfilter(allMasterData) {
     .dimension(T.severity.dim)
     .group(T.severity.group, 'Selected')
     .stack(T.severity.unselectedGroup, 'Unselected')
-    .colors(d3.scaleOrdinal().range(['#1f77b4', '#8eb1d4']))
+    .colors(d3.scaleOrdinal().range([COLORS_TREATED.selected, COLORS_TREATED.unselected]))
     .x(d3.scaleLinear().domain([0, severityMax + severityBin]))
     .xUnits(() => Math.max(1, Math.ceil((severityMax + severityBin) / severityBin)))
     .elasticY(true).brushOn(true).margins({ top: 10, right: 10, bottom: 30, left: 40 });
@@ -200,7 +200,7 @@ function buildCrossfilter(allMasterData) {
     .dimension(T.traffic.dim)
     .group(T.traffic.group, 'Selected')
     .stack(T.traffic.unselectedGroup, 'Unselected')
-    .colors(d3.scaleOrdinal().range(['#1f77b4', '#8eb1d4']))
+    .colors(d3.scaleOrdinal().range([COLORS_TREATED.selected, COLORS_TREATED.unselected]))
     .x(d3.scaleLinear().domain([0, trMax + trBin]))
     .xUnits(() => Math.max(1, Math.ceil((trMax + trBin) / trBin)))
     .elasticY(true).brushOn(true).margins({ top: 10, right: 10, bottom: 30, left: 40 });
@@ -210,7 +210,7 @@ function buildCrossfilter(allMasterData) {
     .dimension(T.cr.dim)
     .group(T.cr.group, 'Selected')
     .stack(T.cr.unselectedGroup, 'Unselected')
-    .colors(d3.scaleOrdinal().range(['#1f77b4', '#8eb1d4']))
+    .colors(d3.scaleOrdinal().range([COLORS_TREATED.selected, COLORS_TREATED.unselected]))
     .x(d3.scaleLinear().domain([0, crMax + crBin]))
     .xUnits(() => Math.max(1, Math.ceil((crMax + crBin) / crBin)))
     .elasticY(true).brushOn(true).margins({ top: 10, right: 10, bottom: 30, left: 40 });
@@ -220,7 +220,7 @@ function buildCrossfilter(allMasterData) {
     .dimension(T.crNorm.dim)
     .group(T.crNorm.group, 'Selected')
     .stack(T.crNorm.unselectedGroup, 'Unselected')
-    .colors(d3.scaleOrdinal().range(['#1f77b4', '#8eb1d4']))
+    .colors(d3.scaleOrdinal().range([COLORS_TREATED.selected, COLORS_TREATED.unselected]))
     .x(d3.scaleLinear().domain([0, crnMax + crnBin]))
     .xUnits(() => Math.max(1, Math.ceil((crnMax + crnBin) / crnBin)))
     .elasticY(true).brushOn(true).margins({ top: 10, right: 10, bottom: 30, left: 40 });
@@ -257,11 +257,10 @@ function buildCrossfilter(allMasterData) {
 
     if (meanT !== null && isFinite(meanT)) {
       g.append('line').attr('class', 'mean-line-t')
-        .attr('stroke', '#1f77b4').attr('stroke-width', 2).style('pointer-events', 'none')
+        .attr('stroke', COLORS_TREATED.selected).attr('stroke-width', 2).style('pointer-events', 'none')
         .attr('x1', xSc(meanT)).attr('x2', xSc(meanT)).attr('y1', 0).attr('y2', effH);
       g.append('text').attr('class', 'mean-line-t')
-        .attr('fill', '#1f77b4').attr('font-size', '9px').attr('font-weight', 'bold')
-        .style('pointer-events', 'none')
+        .attr('fill', COLORS_TREATED.selected).attr('font-size', '9px').attr('font-weight', 'bold').style('pointer-events', 'none')
         .attr('x', xSc(meanT) + 4).attr('y', 10)
         .text(meanT >= 1000 ? Math.round(meanT).toLocaleString() : meanT.toFixed(2));
     }
@@ -404,7 +403,39 @@ function buildCrossfilter(allMasterData) {
         window._l1FetchTimeout = setTimeout(() => {
           fetch(`http://localhost:5000/api/level1?pairs=${pairs}`)
             .then(r => r.json())
-            .then(data => { computeDoI(data); buildL1Scatter(data); buildL1Table(data); });
+            .then(data => { 
+              computeDoI(data); 
+              buildL1Scatter(data); 
+              buildL1Table(data); 
+              if (typeof _lockedRCSTA !== 'undefined' && _lockedRCSTA != null) {
+                const stillExists = data.some(d => String(d.RCSTA) === String(_lockedRCSTA));
+                if (stillExists) {
+                  const rcsta = _lockedRCSTA;
+                  
+                  // Aggiorna la referenza _lockedExact al nuovo oggetto in 'data'
+                  if (typeof _lockedExact !== 'undefined' && _lockedExact) {
+                    const match = data.find(d => 
+                      String(d.RCSTA) === String(rcsta) && 
+                      d.install_year === _lockedExact.install_year &&
+                      d.install_month === _lockedExact.install_month &&
+                      d.intervention === _lockedExact.intervention
+                    );
+                    if (match) {
+                      _lockedExact = match;
+                    }
+                  }
+
+                  const exactD = _lockedExact;
+                  _highlightedRCSTA = null;
+                  _highlightedExact = null;
+                  setTimeout(() => { if (typeof highlightRCSTA === 'function') highlightRCSTA(rcsta, exactD, true); }, 50);
+                } else {
+                  _lockedRCSTA = null;
+                  _lockedExact = null;
+                  if (typeof clearHighlight === 'function') clearHighlight();
+                }
+              }
+            });
         }, 300);
       } else {
         buildL1Scatter([]); buildL1Table([]);
@@ -470,7 +501,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (resetBtn) resetBtn.addEventListener('click', () => {
     if (window._activeIntFilters) window._activeIntFilters.clear();
     if (typeof _intDimTRef !== 'undefined' && _intDimTRef) _intDimTRef.filterAll();
-    d3.selectAll('.int-bar-rect').classed('active', false).attr('fill', '#1f77b4');
+    d3.selectAll('.int-bar-rect').classed('active', false).attr('fill', COLORS_TREATED.selected);
 
     let needsRebuild = false;
     const tw = document.getElementById('time-window-select');

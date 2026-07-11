@@ -1,0 +1,99 @@
+# Dashboard Data Lineage & Variables Report
+
+Questa documentazione analizza a fondo i file del frontend (organizzati in moduli: `map.js`, `level0.js`, `level1.js`, `level2_core.js`, `level2_events.js`, `level2_timeseries.js`, `crossfilter.js`, `pcp.js`, `config.js`, `state.js`, `utils.js`) e `app.py` per mappare esattamente quali variabili vengono usate nei grafici di ogni livello (0, 1 e 2), da dove provengono, e come vengono trasformate, arrotondate o filtrate prima del rendering. 
+
+Tutte le riduzioni e l'analisi dettagliata (soprattutto nel Level 2) ora utilizzano la metrica del **Risk Rate** (ovvero gli incidenti normalizzati per la stagionalità mensile e divisi per il volume di traffico AADT).
+
+---
+
+## Livello 0 (Analisi di Rete & Crossfilter)
+
+I dati di Livello 0 provengono dall'API `/api/v1/interventions/level0` o `/api/master` (`app.py`), che fonde il dataset `master_filtered` con le proprietà geografiche. Nel frontend, i dati popolano un **Crossfilter principale** per i segmenti trattati e un crossfilter secondario per il controllo (usato per le distribuzioni nel PCP).
+
+### 1. Mappa Principale (L0)
+- **Geometria**: Coordinate GeoJSON (Point o LineString) passate dall'API.
+- **Colore (Treatment_status)**: La variabile usata è `treated` (booleano/intero). Le classi sono: Treated Active, Treated Inactive, Untreated Active, Untreated Inactive.
+- **Raggio/Spessore**: Dipendente dallo stato (attivo/inattivo).
+
+### 2. Timeline Slider (Anno di installazione)
+- **Filtro Temporale**: Utilizza le variabili `install_year` e `install_month`. Il filtro si applica sia ai segmenti trattati che a quelli non trattati (i quali presentano ora più righe per segmento corrispondenti a ciascun anno simulato, dal 2015 al 2022). I segmenti senza anno vengono raggruppati in una singola barra "Unknown" o scartati dalle selezioni rigide. Al di sopra dello slider è presente un **Timeline Mini-Chart** (istogramma) che mostra dinamicamente la distribuzione delle date di installazione nel tempo.
+
+### 3. Grafico a Barre (Intervention Type)
+- **Variabile Originale**: `intervention` (stringa categorica). Viene divisa per `|` per interventi multipli e normalizzata tramite un dizionario `ABBR` interno. Il grafico permette non solo di filtrare ma mostra anche dinamicamente la differenza tra le barre di background (interventi totali/non attivi) e quelle colorate di primo piano (interventi attivi), interagendo con gli altri filtri della dashboard.
+
+### 4. Istogrammi (DC.js)
+Tutti e 4 gli istogrammi usano la tendina *Time Window* (1, 2 o 3 anni) per selezionare dinamicamente il nome della variabile.
+- **Severity Rate**: `severity_index_pre_{1y/2y/3y}`
+- **Traffic Index**: `traffic_index_pre_{1y/2y/3y}`
+- **Crash Rate deseasoned**: `crashes_pre_norm_{1y/2y/3y}` (Incidenti destagionalizzati).
+- **Risk Rate**: `crashes_pre_norm_aadt_{1y/2y/3y}`.
+
+### 5. Parallel Coordinates Plot (PCP)
+- **Dati Utilizzati (Deduplicati)**: A differenza degli istogrammi (che usano una riga per intervento), il PCP riceve i dati filtrati dal Crossfilter ma li **deduplica al volo** basandosi sull'identificativo unico della strada (`RCSTA`). In questo modo:
+  1. Ogni strada ha sempre e solo *una linea* tracciata nel grafico, evitando sovrapposizioni artificiose per strade con più interventi.
+  2. Le curve di densità (KDE) ai lati degli assi riflettono la distribuzione esatta dei segmenti fisici (Treated vs Untreated). Le curve di densità sono state ottimizzate per estendersi uniformemente su tutto l'asse (e non bloccarsi prima dei margini), garantendo continuità visiva. Se l'utente applica un filtro categorico (es. *Intervention Type*), i segmenti *Untreated* vengono coerentemente esclusi dalle curve di densità e conteggiati come nulli.
+  3. L'indice di Similarità (Coefficiente di Overlap) è calcolato sulla base di strade uniche e non di interventi ripetuti. Viene visualizzato come una piccola barra colorata (viola) affiancata dal valore numerico decimale, con un tooltip descrittivo invisibile ("% of Similarity") ancorato in SVG sopra le curve di densità.
+- **Variabili Originali**: Un mix di tutte le metriche continue stabili a livello di strada (`length_m`, `density`, `MHI`, `total_lanes`, `speed_limit`).
+- **Interazioni e Tooltip**: Il tooltip sugli assi verticali mostra statistiche descrittive basate sui segmenti unici. Mostra esclusivamente **Media** (Mean) e **Range** (Min/Max). I gruppi visualizzati sono divisi tra Treated e Untreated. I gruppi vuoti (conteggio pari a 0) vengono automaticamente nascosti dal tooltip per mantenere l'interfaccia pulita. Le statistiche della leggenda principale (es. N / Tot) riflettono sempre i segmenti unici. Il design di questo tooltip è stato uniformato per combaciare perfettamente con i tooltip del Lineplot del Level 2. Inoltre, la logica del tooltip è stata rinforzata (tramite un layer invisibile) per poter continuare a esplorare queste statistiche anche quando la dashboard entra in stato L1 (in cui il *brush* viene altrimenti bloccato).
+
+---
+
+## Livello 1 (Confronto Gruppo Trattato)
+
+I dati del Livello 1 sono limitati ai soli elementi visibili sulla mappa dopo l'applicazione dei filtri di L0.
+
+### 1. Scatter Plot (Reduction % vs Crash Rate Adj. for Traffic (%))
+- **Asse X**: `reduction_{1y/2y/3y}_pct` o `reduction_norm_{1y/2y/3y}_pct` (riduzione incidenti percentuali)
+- **Asse Y**: `reduction_norm_aadt_{1y/2y/3y}_pct` (etichettato come "Crash Rate Adj. for Traffic (%)").
+- **Modifiche**: Valori inf/-inf puliti a monte dalla pipeline (`Fase_1_2.py`), dove i calcoli matematici delle riduzioni percentuali gestiscono robustamente i denominatori a zero (convertendoli in -100% o 0.0%). I dati arrivano al backend già validati e interpolati a colori dal frontend.
+
+### 2. Overall Stats Banner
+- **Overall Crash Var**: Media dei valori `reduction_norm_{1y/2y/3y}_pct` per tutti i segmenti filtrati nel gruppo L1.
+- **Overall Risk Rate Var**: Media dei valori `reduction_norm_aadt_{1y/2y/3y}_pct` per tutti i segmenti filtrati nel gruppo L1. Questo offre una sintesi quantitativa dell'intero gruppo.
+
+### 3. Tabella di Dettaglio (Segment Details)
+Dipende dalla finestra temporale selezionata in alto.
+- **Road Name**: Variabile `road_name`.
+- **Mo/Yr**: `install_month` e `install_year`.
+- **Red. %**: `reduction_norm_{1y/2y/3y}_pct`
+- **Red. AADT %**: `reduction_norm_aadt_{1y/2y/3y}_pct`
+- **Raw Pre Crashes**: `crashes_pre_1y/2y/3y` (Conteggio totale grezzo incidenti pre-intervento, senza decimali).
+- **Traffic Variation**: `traffic_variation_1y/2y/3y` (Differenza tra Traffic Index pre e post).
+- **DoI (Degree of Interest)**: `doi` (Calcolato dinamicamente nel frontend in base alla discrepanza tra le variazioni percentuali. Il peso dei valori discordi è configurabile dall'utente tramite lo slider "Discordance Weight").
+
+---
+
+## Livello 2 (Effectiveness Analysis)
+
+Il Livello 2 isola un singolo segmento e valuta i Local Segments (vicini spaziali). Il backend ora sfrutta il file `crash_monthly_panel.parquet` per calcolare in maniera dinamica i **Risk Rate** medi prima e dopo l'intervento.
+
+### 1. Statistiche del Segmento Target (Target Segment Info)
+- **Posizione**: Il pannello è posizionato all'interno dell'L2 Filter Panel (nella riga superiore), accanto ai controlli dell'Effectiveness Analysis, ed è compattato nello stile del tema della dashboard.
+- **Target Baseline Risk Rate**: `risk_rate_pre` (prelevato da master statico se calcolato o ricalcolato da backend).
+- **Target Post Risk Rate**: `risk_rate_post`.
+- **Risk Rate Reduction %**: `reduction_norm_aadt`.
+- **Annual Sparkline**: Un mini-grafico integrato nel tooltip e descritto nella UI che mostra i valori di `aadt_array` e `ncrashes_array` aggregati su base annua.
+
+### 2. Mappa L2 (Raggi e Vicini)
+- **Geometria Vicini (Local Segments)**: Geometrie con `distance_m` <= `radiusM` (slider).
+- **Colore Vicini**: Scala cromatica a 9 classi (intervalli del 25%) applicata sulla variabile di backend `reduction_norm_aadt` (riduzione percentuale del Risk Rate). Le variazioni in aumento (rosso/arancio) usano 5 colori, mentre le riduzioni (verde) usano 4 colori. I vicini esclusi dai filtri mostrano il colore "Filtered out". La legenda è intitolata "Risk Rate Variation".
+
+### 3. Filtri e Istogrammi Slider (Pannello Destro)
+Tutti gli slider operano sui risultati pre-calcolati restituiti dall'endpoint `/api/level2`. **Nota:** L'aggiornamento dei filtri è completamente automatico e reattivo; non c'è più il bottone "Apply Filters".
+- **Radius & Time Window**: Variabile `distance_m` tramite slider (250m - 1500m) e finestra temporale d'analisi (1, 2, 3 anni) via selettore a tendina.
+- **Risk Rate ↑ / Risk Rate ↓ (Min e Max Reduction %)**: 
+  - *Variabile*: `reduction_norm_aadt` (percentuale). 
+- **Min PRE (Avg Risk Rate)**:
+  - *Variabile*: `risk_rate_pre`.
+- **Max POST (Avg Risk Rate)**:
+  - *Variabile*: `risk_rate_post`.
+
+### 4. Future Pre/Post Analysis Panel
+Questo nuovo pannello (situato nella colonna destra sotto al lineplot temporale) utilizza l'endpoint `/api/level2/events` (e `/api/level2/events/group`) per fetchare e visualizzare informazioni granulari sugli eventi.
+- **Variabili**: Analizza eventi in base a metriche categoriche (`Victim Type`, `Crash Type` tramite Radar Chart e Barplot) e temporali (giorni/ore tramite una doppia **Time Heatmap** Pre/Post).
+- **Indicatori Aggregati**: Ogni grafico mostra il conteggio totale ("sum") e una barra di Similarità ("% of Similarity Pre/Post") per confrontare facilmente pre e post intervento. Il backend calcola inoltre metriche di **Mortality** (`pre_fatal`, `post_fatal`, `pre_crashes`, `post_crashes`).
+- **Interattività**: Un menu permette di cambiare grafico in tempo reale. Per la Heatmap, un toggle **"Switch View"** scambia i dati tra il Target e il Group, mentre un pulsante permette di espandere/collassare la vista temporale ("Expand/Compact View").
+
+### 5. Lineplot Temporale e AADT Bar Chart
+- **Monthly Time Series**: Costruito usando `crash_monthly_panel.parquet` filtrato dal backend tramite `/api/level2/timeseries`.
+- **Moving Average & AADT**: Possibilità di selezionare la media mobile (`l2-lineplot-ma`: Raw, 3, 6, o 12-Month MA) per livellare il rumore nei dati mensili. Al di sotto del lineplot è integrato un bar chart per esplorare la variazione annuale aggregata di AADT vs Crashes.

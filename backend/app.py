@@ -372,8 +372,10 @@ def get_level2():
             if nb_rcsta not in deltas:
                 continue
             d = deltas[nb_rcsta]
+            r_name = road_names.get(nb_rcsta, "")
             cohort_a_records.append({
                 "RCSTA":               nb_rcsta,
+                "road_name":           str(r_name),
                 "distance_m":          float(row["distance_m"]),
                 "reduction_norm_aadt": d["reduction_norm_aadt"],
                 "risk_rate_pre":       d["risk_rate_pre"],
@@ -409,7 +411,7 @@ def get_level2():
             })
         return features
 
-    cohort_a_features = build_features(cohort_a_records, ["reduction_norm_aadt", "distance_m", "risk_rate_pre", "risk_rate_post", "ts_array", "rr_array", "aadt_array", "ncrashes_array", "fatal_pre", "fatal_post", "crashes_pre", "crashes_post"])
+    cohort_a_features = build_features(cohort_a_records, ["reduction_norm_aadt", "distance_m", "risk_rate_pre", "risk_rate_post", "ts_array", "rr_array", "aadt_array", "ncrashes_array", "fatal_pre", "fatal_post", "crashes_pre", "crashes_post", "road_name"])
     # ── 4. TARGET GEOJSON ───────────────────────────────────────────────────────
     # Use static pre/post risk rate from master for L2 info box and map tooltip
     master_row = segments_master[cond]

@@ -177,7 +177,7 @@
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <span class="panel-title">Monthly Time Series & Annual Summaries</span>
           <select id="l2-lineplot-ma" style="font-size: 11px; padding: 2px; border: 1px solid #ccc; border-radius: 4px; outline:none; cursor:pointer;">
-            <option value="1">Risk Rate Raw</option>
+            <option value="1">1-Month MA</option>
             <option value="3">3-Month MA</option>
             <option value="6">6-Month MA</option>
             <option value="12" selected>12-Month MA</option>
@@ -200,7 +200,7 @@
           <select id="l2-events-select" onchange="if(typeof _l2RenderSelectedEventChart === 'function') _l2RenderSelectedEventChart()" style="font-size: 11px; padding: 2px; border: 1px solid #ccc; border-radius: 4px; outline:none; cursor:pointer; max-width: 140px;">
             <option value="victim_type">Victim Type</option>
             <option value="crash_type">Crash Type</option>
-            <option value="time_scatter">Time Scatterplot</option>
+            <option value="time_heatmap">Time Heatmap</option>
           </select>
         </div>
         <div id="l2-events-chart-container" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; justify-content: center;">
@@ -308,9 +308,35 @@
         <!-- rimosso il secondo bottone Back to network come richiesto -->
         <div id="active-filters-bar" class="active-filters-bar" style="display:none;"></div>
 
+        <!-- OVERALL STATS BANNER -->
+        <div id="l1-overall-stats" class="panel" style="display:none; flex-direction:row; justify-content:space-around; align-items:center; padding: 4px 8px; margin-top: -4px; margin-bottom: 2px; border: 1px solid #e2e8f0; border-radius: 4px; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+          <div style="display:flex; align-items:center; gap: 6px;">
+             <div style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">Overall Crash Var:</div>
+             <div id="l1-overall-crash-var" style="font-size: 13px; font-weight: 800; color: #1e293b;">—</div>
+          </div>
+          <div style="display:flex; align-items:center; gap: 6px;">
+             <div style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">Overall Risk Rate Var:</div>
+             <div id="l1-overall-risk-var" style="font-size: 13px; font-weight: 800; color: #1e293b;">—</div>
+          </div>
+        </div>
+
         <!-- scatter plot: riduzione % vs riduzione % normalizzata per AADT -->
         <div class="l1-scatter-wrap panel">
-          <span class="panel-title">Crash reduction deseasoned vs risk rate reduction</span>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <span class="panel-title" style="margin-bottom:0;">Crash reduction deseasoned vs risk rate reduction</span>
+            <div class="l2-control-row" style="flex-direction:column; gap:4px; min-width:110px; margin-bottom:0;">
+              <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+                <label class="l2-ctrl-label" style="padding-top:0; font-size:9.5px;" title="Adjust weight given to discordant values">Discordance Weight</label>
+                <span class="l2-slider-val" id="doi-beta-val" style="font-size:10px; width:22px; text-align:right; display:inline-block;">2.5</span>
+              </div>
+              <div class="l2-slider-wrap" style="width:100%;">
+                <input type="range" id="doi-beta-slider" class="l2-slider" min="0" max="10" step="0.5" value="2.5">
+                <div class="l2-slider-track-labels">
+                  <span>0</span><span>10</span>
+                </div>
+              </div>
+            </div>
+          </div>
           <div id="l1-scatter"></div> <!-- contenitore SVG dello scatter plot, costruito in index.js -->
         </div>
 

@@ -112,7 +112,8 @@ html, body {
     border-radius: 4px;
     padding: 4px 6px;
     margin-bottom: 8px;
-    height: 38px;
+    min-height: 38px;
+    max-height: 56px;
     line-height: 14px;
     overflow-x: hidden;
     overflow-y: auto;
@@ -143,8 +144,8 @@ html, body {
     cursor: pointer;
     transition: opacity 0.12s;
 }
-.int-bar-rect:hover { fill: #e45756 !important; opacity: 1; }
-.int-bar-rect.active { fill: #e45756 !important; stroke: #c84040; stroke-width: 1px; }
+.int-bar-rect:hover { fill: #f59e0b !important; opacity: 1; }
+.int-bar-rect.active { fill: #f59e0b !important; stroke: #d97706; stroke-width: 1px; }
 /* Overlay proporzionale (hover highlight) disegnato sopra ogni barra */
 .int-overlay-rect { pointer-events: none; }
 
@@ -1166,7 +1167,7 @@ html, body {
 /* ── Updated target color for light theme ──────────────────────────────────── */
 .l2-info-box { border-color: #e2e8f0; background: #f8fafc; }
 .l2-info-label { color: #555; }
-.l2-info-road  { color: #FFD600; -webkit-text-stroke: 0.5px #000; } /* matches target segment map color */
+.l2-info-road  { color: #eab308; } /* matches target segment map color context but legible on white */
 .l2-panel-title { color: #555; }
 .l2-apply-btn {
   background: linear-gradient(135deg, #1f77b4 0%, #0d5a9f 100%);

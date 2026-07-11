@@ -74,7 +74,7 @@ function _l2RenderSelectedEventChart() {
   if (window._l2ActiveRcstas) nNeighbors = Math.max(1, window._l2ActiveRcstas.size - 1);
 
   const key = sel.value;
-  if (key === 'time_scatter') { _l2DrawTimeHeatmapToggle('l2-events-chart-container', targetData, groupData); return; }
+  if (key === 'time_heatmap') { _l2DrawTimeHeatmapToggle('l2-events-chart-container', targetData, groupData); return; }
   if (key === 'victim_type')  { _l2DrawVictimTypeBarplotCombined('l2-events-chart-container', targetData, groupData, nNeighbors); return; }
   if (key === 'crash_type')   { _l2DrawCrashTypeRadarCombined('l2-events-chart-container', targetData, groupData, nNeighbors); return; }
 }
@@ -85,61 +85,255 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // =============================================================================
-//  TIME HEATMAP CON TOGGLE TARGET/GROUP
+//  TIME HEATMAP CON TOGGLE TARGET/GROUP + COMPACT/EXPAND
 // =============================================================================
 
 function _l2DrawTimeHeatmapToggle(containerId, tData, gData) {
   const container = document.getElementById(containerId);
   container.innerHTML = '';
 
-  const header = document.createElement('div');
-  header.style.cssText = 'display:flex; justify-content:center; align-items:center; margin-bottom:6px; gap:12px; width:100%;';
+  // ── Header: segmented pill + expand icon in a single row ──────────────────
+  const topBar = document.createElement('div');
+  topBar.style.cssText = 'display:flex; align-items:center; justify-content:space-between; width:100%; margin-bottom:6px;';
 
-  const lblTarget = document.createElement('span');
-  lblTarget.textContent = 'Target';
-  Object.assign(lblTarget.style, { fontSize: '12px', fontWeight: 'bold', color: '#333' });
+  // Segmented pill control (Target | Group)
+  const pill = document.createElement('div');
+  pill.style.cssText = [
+    'display:flex; align-items:center;',
+    'background:#f1f5f9; border-radius:20px;',
+    'border:1px solid #e2e8f0; padding:2px; gap:2px;',
+    'box-shadow:inset 0 1px 2px rgba(0,0,0,0.06);'
+  ].join('');
 
-  const lblGroup = document.createElement('span');
-  lblGroup.textContent = 'Group';
-  Object.assign(lblGroup.style, { fontSize: '12px', fontWeight: 'normal', color: '#888' });
+  const mkTab = (label) => {
+    const btn = document.createElement('button');
+    btn.textContent = label;
+    btn.dataset.tab = label;
+    Object.assign(btn.style, {
+      fontSize: '11px', fontWeight: '600', padding: '3px 14px',
+      borderRadius: '18px', border: 'none', cursor: 'pointer',
+      transition: 'all 0.18s ease', background: 'transparent', color: '#64748b'
+    });
+    return btn;
+  };
+  const tabTarget = mkTab('Target');
+  const tabGroup  = mkTab('Group');
+  pill.appendChild(tabTarget);
+  pill.appendChild(tabGroup);
 
-  const toggleBtn = document.createElement('button');
-  toggleBtn.innerHTML = '<span style="margin-right:4px;">&#8644;</span>Switch View';
-  Object.assign(toggleBtn.style, {
-    fontSize: '11px', padding: '4px 12px', cursor: 'pointer', borderRadius: '16px',
-    border: '1px solid #cbd5e1', background: 'linear-gradient(to bottom, #ffffff, #f1f5f9)',
-    color: '#475569', fontWeight: '600', boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-    transition: 'all 0.2s ease', display: 'flex', alignItems: 'center'
+  const setActiveTab = (isGroup) => {
+    const active   = isGroup ? tabGroup  : tabTarget;
+    const inactive = isGroup ? tabTarget : tabGroup;
+    Object.assign(active.style,   { background: '#ffffff', color: '#1e293b', boxShadow: '0 1px 3px rgba(0,0,0,0.12)' });
+    Object.assign(inactive.style, { background: 'transparent', color: '#64748b', boxShadow: 'none' });
+  };
+
+  // Expand/Compact icon button
+  if (window._l2TimeHeatmapExpanded === undefined) window._l2TimeHeatmapExpanded = false;
+  const expandBtn = document.createElement('button');
+  const expandIcon = () => window._l2TimeHeatmapExpanded ? '⊟ Compact' : '⊞ Expand';
+  expandBtn.innerHTML = expandIcon();
+  Object.assign(expandBtn.style, {
+    fontSize: '10px', padding: '3px 9px', cursor: 'pointer',
+    borderRadius: '12px', border: '1px solid #e2e8f0',
+    background: 'transparent', color: '#94a3b8', fontWeight: '500',
+    transition: 'all 0.15s ease', lineHeight: '1.2'
   });
-  toggleBtn.onmouseover = () => Object.assign(toggleBtn.style, { background: 'linear-gradient(to bottom, #f8fafc, #e2e8f0)', borderColor: '#94a3b8', color: '#0f172a', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' });
-  toggleBtn.onmouseout  = () => Object.assign(toggleBtn.style, { background: 'linear-gradient(to bottom, #ffffff, #f1f5f9)', borderColor: '#cbd5e1', color: '#475569', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' });
-  toggleBtn.onmousedown = () => toggleBtn.style.transform = 'scale(0.96)';
-  toggleBtn.onmouseup   = () => toggleBtn.style.transform = 'scale(1)';
+  expandBtn.onmouseover = () => Object.assign(expandBtn.style, { background: '#f8fafc', color: '#475569', borderColor: '#cbd5e1' });
+  expandBtn.onmouseout  = () => Object.assign(expandBtn.style, { background: 'transparent', color: '#94a3b8', borderColor: '#e2e8f0' });
 
-  header.appendChild(lblTarget);
-  header.appendChild(toggleBtn);
-  header.appendChild(lblGroup);
+  topBar.appendChild(pill);
+
+  // Similarity placeholder — centrato nella topBar
+  const simContainer = document.createElement('div');
+  Object.assign(simContainer.style, { flex: '1', display: 'flex', alignItems: 'center', justifyContent: 'center' });
+  topBar.appendChild(simContainer);
+
+  topBar.appendChild(expandBtn);
 
   const chartWrapper = document.createElement('div');
   Object.assign(chartWrapper.style, { flex: '1', width: '100%', display: 'flex', flexDirection: 'row' });
   chartWrapper.id = containerId + '-inner';
 
-  container.appendChild(header);
+  container.appendChild(topBar);
   container.appendChild(chartWrapper);
   container.style.flexDirection = 'column';
 
-  window._l2TimeScatterIsGroup = window._l2TimeScatterIsGroup || false;
+  window._l2TimeHeatmapIsGroup = window._l2TimeHeatmapIsGroup || false;
+
   const drawCurrent = () => {
-    lblTarget.style.fontWeight = window._l2TimeScatterIsGroup ? 'normal' : 'bold';
-    lblTarget.style.color      = window._l2TimeScatterIsGroup ? '#888' : '#333';
-    lblGroup.style.fontWeight  = window._l2TimeScatterIsGroup ? 'bold' : 'normal';
-    lblGroup.style.color       = window._l2TimeScatterIsGroup ? '#333' : '#888';
-    const preScatter  = window._l2TimeScatterIsGroup ? (gData ? gData.Pre.scatter  : []) : tData.Pre.scatter;
-    const postScatter = window._l2TimeScatterIsGroup ? (gData ? gData.Post.scatter : []) : tData.Post.scatter;
-    _l2DrawTimeHeatmap(chartWrapper.id, preScatter || [], postScatter || [], '#94a3b8', window._l2TimeScatterIsGroup ? '#756bb1' : '#fd8d3c');
+    setActiveTab(window._l2TimeHeatmapIsGroup);
+    const preScatter  = window._l2TimeHeatmapIsGroup ? (gData ? gData.Pre.scatter  : []) : (tData ? tData.Pre.scatter : []);
+    const postScatter = window._l2TimeHeatmapIsGroup ? (gData ? gData.Post.scatter : []) : (tData ? tData.Post.scatter : []);
+    _l2DrawTimeHeatmap(chartWrapper.id, preScatter || [], postScatter || [], window._l2TimeHeatmapExpanded, window._l2TimeHeatmapIsGroup, simContainer);
   };
-  toggleBtn.addEventListener('click', () => { window._l2TimeScatterIsGroup = !window._l2TimeScatterIsGroup; drawCurrent(); });
+
+  tabTarget.addEventListener('click', () => { window._l2TimeHeatmapIsGroup = false; drawCurrent(); });
+  tabGroup.addEventListener('click',  () => { window._l2TimeHeatmapIsGroup = true;  drawCurrent(); });
+  expandBtn.addEventListener('click', () => {
+    window._l2TimeHeatmapExpanded = !window._l2TimeHeatmapExpanded;
+    expandBtn.innerHTML = expandIcon();
+    drawCurrent();
+  });
+
   drawCurrent();
+}
+
+// =============================================================================
+//  TIME HEATMAP (Pre + Post, side-by-side)
+// =============================================================================
+
+function _l2CreateSimilarityBar(similarity, isSmall = false) {
+  const simColorScale = d3.scaleQuantize().domain([0, 1]).range(COLORS_SIMILARITY);
+  const color = simColorScale(similarity);
+  const val = similarity.toFixed(2);
+  const barMaxW = isSmall ? 30 : 50;
+  const barW = Math.max(2, similarity * barMaxW);
+  const pad = isSmall ? '1px 4px' : '2px 6px';
+  const fontS = isSmall ? '8px' : '9px';
+  const h = isSmall ? '4px' : '6px';
+  
+  return `
+    <div title="Similarity (Pre vs Post)" style="display:flex; flex-direction:row; align-items:center; gap:4px; margin-left: ${isSmall ? '4px' : '12px'}; cursor:default; background: #f8fafc; padding: ${pad}; border-radius: 4px; border: 1px solid #e2e8f0;">
+      <span style="font-size:${fontS}; font-weight:700; color:#475569; line-height:1;">${val}</span>
+      <div style="width:${barMaxW}px; height:${h}; background:#e2e8f0; border-radius:2px; overflow:hidden;">
+        <div style="width:${barW}px; height:100%; background:${color}; border-radius:2px;"></div>
+      </div>
+    </div>
+  `;
+}
+
+function _l2DrawTimeHeatmap(containerId, preData, postData, isExpanded, isGroup = false, simContainer = null) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = '';
+  Object.assign(container.style, { display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-start', gap: '10px', overflow: 'hidden' });
+
+  const divPre  = document.createElement('div');
+  const divPost = document.createElement('div');
+  divPre.style.flex = divPost.style.flex = '1';
+  divPre.style.minWidth = divPost.style.minWidth = '0';
+  container.appendChild(divPre);
+  container.appendChild(divPost);
+
+  const computeGrid = (scatterData, expandedFlag = isExpanded) => {
+    if (expandedFlag) {
+      const matrix = Array.from({ length: 7 }, () => Array(12).fill(0));
+      (scatterData || []).forEach(d => {
+        const dIdx = d.day_of_week, hIdx = Math.floor(d.hour / 2);
+        if (dIdx >= 0 && dIdx < 7 && hIdx >= 0 && hIdx < 12) {
+          const row = (hIdx - 3 + 12) % 12;
+          matrix[dIdx][row] += 1;
+        }
+      });
+      return matrix;
+    } else {
+      const matrix = Array.from({ length: 2 }, () => Array(3).fill(0));
+      (scatterData || []).forEach(d => {
+        const dIdx = d.day_of_week, h = d.hour;
+        let col = (dIdx < 5) ? 0 : 1; 
+        let row = 0;
+        if (h >= 6 && h < 14) row = 0;
+        else if (h >= 14 && h < 22) row = 1;
+        else row = 2; 
+        matrix[col][row] += 1;
+      });
+      return matrix;
+    }
+  };
+
+  const gridPre = computeGrid(preData);
+  const gridPost = computeGrid(postData);
+
+  const globalMaxVal = Math.max(d3.max(gridPre.flat()), d3.max(gridPost.flat()), 1);
+  const colorScale = d3.scaleSequential(d3.interpolatePurples).domain([0, globalMaxVal]);
+
+  const parentH = container.parentElement ? container.parentElement.clientHeight : 200;
+  const hmH = container.clientHeight > 0 ? container.clientHeight : Math.max(100, parentH - 60);
+  divPre.style.height = divPost.style.height = hmH + 'px';
+
+  const drawHeatmap = (targetDiv, grid, title) => {
+    const margin = { top: 18, right: 6, bottom: 22, left: isExpanded ? 40 : 75 };
+    const divW = targetDiv.clientWidth || 140;
+    const divH = targetDiv.clientHeight || hmH;
+    const width = divW - margin.left - margin.right;
+    const height = divH - margin.top - margin.bottom;
+    if (width <= 0 || height <= 0) return;
+
+    const svg = d3.select(targetDiv).append('svg').attr('width', divW).attr('height', divH)
+      .append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+    let cols = isExpanded ? 7 : 2;
+    let rows = isExpanded ? 12 : 3;
+    let colLabels = isExpanded ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] : ['Mon-Fri', 'Sat-Sun'];
+    let rowLabels = isExpanded ? ['6-8','8-10','10-12','12-14','14-16','16-18','18-20','20-22','22-24','0-2','2-4','4-6'] : ['Morning (6-14)', 'Afternoon (14-22)', 'Night (22-6)'];
+
+    const flatData = [];
+    for (let c = 0; c < cols; c++) {
+      for (let r = 0; r < rows; r++) {
+        flatData.push({ col: c, row: r, value: grid[c][r] });
+      }
+    }
+
+    const x = d3.scaleBand().domain(d3.range(cols)).range([0, width]).padding(0.05);
+    const y = d3.scaleBand().domain(d3.range(rows)).range([0, height]).padding(0.05);
+
+    svg.append('g').attr('transform', `translate(0,${height})`)
+      .call(d3.axisBottom(x).tickSize(0).tickFormat(d => isExpanded ? colLabels[d][0] : colLabels[d]))
+      .selectAll('text').style('font-family', 'Inter, sans-serif').style('font-size', isExpanded ? '8px' : '9px');
+    svg.append('g').call(d3.axisLeft(y).tickSize(0).tickFormat(d => rowLabels[d]))
+      .selectAll('text').style('font-family', 'Inter, sans-serif').style('font-size', isExpanded ? '7.5px' : '8px');
+    svg.selectAll('.domain').remove();
+
+    svg.append('text').attr('x', width / 2).attr('y', -5).attr('text-anchor', 'middle')
+      .style('font-size', '10px').style('font-family', 'Inter, sans-serif').style('font-weight', '700').text(title);
+    svg.append('text').attr('x', width / 2).attr('y', height + 17).attr('text-anchor', 'middle')
+      .style('font-size', '7.5px').style('fill', '#94a3b8').text('Day of week');
+
+    let ttHeat = d3.select('body').select('#heatmap-tooltip');
+    if (ttHeat.empty()) {
+      ttHeat = d3.select('body').append('div').attr('id', 'heatmap-tooltip')
+        .style('position', 'absolute').style('background', 'rgba(255,255,255,0.97)')
+        .style('border', '1px solid #d0d5dd').style('border-radius', '6px').style('padding', '6px 10px')
+        .style('pointer-events', 'none').style('font-size', '11px').style('font-family', 'Inter, sans-serif')
+        .style('box-shadow', '0 4px 6px rgba(0,0,0,0.1)').style('z-index', 10000).style('display', 'none');
+    }
+
+    svg.selectAll('.cell').data(flatData).enter().append('rect')
+      .attr('x', d => x(d.col)).attr('y', d => y(d.row))
+      .attr('width', x.bandwidth()).attr('height', y.bandwidth())
+      .attr('fill', d => d.value === 0 ? '#f8fafc' : colorScale(d.value))
+      .attr('stroke', '#e2e8f0').attr('rx', 1)
+      .on('mouseover', function (e, d) {
+        d3.select(this).attr('stroke', '#475569').attr('stroke-width', 1.5);
+        ttHeat.html(`<div style="font-weight:700;margin-bottom:4px;">${title}</div><div>Day: <b>${colLabels[d.col]}</b></div><div>Time: <b>${rowLabels[d.row]}</b></div><div>Crashes: <b>${d.value}</b></div>`).style('display', 'block');
+      })
+      .on('mousemove', function (e) {
+        let lp = e.pageX + 15; if (lp + ttHeat.node().offsetWidth > window.innerWidth - 10) lp = e.pageX - ttHeat.node().offsetWidth - 15;
+        let tp = e.pageY - 10; if (tp + ttHeat.node().offsetHeight > window.innerHeight - 10) tp = e.pageY - ttHeat.node().offsetHeight - 15;
+        ttHeat.style('left', lp + 'px').style('top', tp + 'px');
+      })
+      .on('mouseout', function () { d3.select(this).attr('stroke', '#e2e8f0').attr('stroke-width', 1); ttHeat.style('display', 'none'); });
+  };
+
+  const countPre = preData ? preData.length : 0;
+  const countPost = postData ? postData.length : 0;
+  drawHeatmap(divPre, gridPre, `Pre (n=${countPre})`);
+  drawHeatmap(divPost, gridPost, `Post (n=${countPost})`);
+
+  let sim = 0;
+  if (countPre > 0 && countPost > 0) {
+    const flatPre = computeGrid(preData, true).flat(), flatPost = computeGrid(postData, true).flat();
+    flatPre.forEach((val, i) => sim += Math.min(val / countPre, flatPost[i] / countPost));
+  }
+  if (simContainer) {
+    simContainer.innerHTML = _l2CreateSimilarityBar(sim);
+  } else {
+    container.style.position = 'relative';
+    const simDiv = document.createElement('div');
+    Object.assign(simDiv.style, { position: 'absolute', top: '2px', left: '50%', transform: 'translateX(-50%)', zIndex: 10 });
+    simDiv.innerHTML = _l2CreateSimilarityBar(sim);
+    container.appendChild(simDiv);
+  }
 }
 
 // =============================================================================
@@ -154,75 +348,12 @@ function _l2DrawVictimTypeBarplotCombined(containerId, tData, gData, nNeighbors)
   container.style.flexDirection = 'column';
 
   const categories    = ['Cyclist', 'Motorist', 'Pedestrian'];
-  const categoryKeys  = ['Cyclist', 'Motorist', 'Pedestrian'];
   const allCatKeys    = ['Cyclist', 'Motorist', 'Pedestrian', 'Other/Unknown'];
 
   const tPreObj  = tData.Pre.victim_type  || {};
   const tPostObj = tData.Post.victim_type || {};
   const gPreObj  = gData ? (gData.Pre.victim_type  || {}) : {};
   const gPostObj = gData ? (gData.Post.victim_type || {}) : {};
-
-  const tPreKnown  = Math.max(1, categoryKeys.reduce((s, c) => s + (tPreObj[c]  || 0), 0));
-  const tPostKnown = Math.max(1, categoryKeys.reduce((s, c) => s + (tPostObj[c] || 0), 0));
-  const gPreKnown  = Math.max(1, categoryKeys.reduce((s, c) => s + (gPreObj[c]  || 0), 0));
-  const gPostKnown = Math.max(1, categoryKeys.reduce((s, c) => s + (gPostObj[c] || 0), 0));
-
-  const toP = (v, tot) => (v / tot) * 100;
-
-  const subgroups = ['Target Pre', 'Target Post', 'Group Pre', 'Group Post'];
-  const colors = { 'Target Pre': '#FFD600', 'Target Post': '#fd8d3c', 'Group Pre': '#9e9ac8', 'Group Post': '#756bb1' };
-
-  const dataArr = categories.map((label, ci) => {
-    const key = categoryKeys[ci];
-    return {
-      category: label,
-      'Target Pre':  toP(tPreObj[key]  || 0, tPreKnown),
-      'Target Post': toP(tPostObj[key] || 0, tPostKnown),
-      'Group Pre':   toP(gPreObj[key]  || 0, gPreKnown),
-      'Group Post':  toP(gPostObj[key] || 0, gPostKnown),
-      counts: {
-        'Target Pre':  tPreObj[key] || 0,
-        'Target Post': tPostObj[key] || 0,
-        'Group Pre':   gPreObj[key] || 0,
-        'Group Post':  gPostObj[key] || 0,
-      }
-    };
-  });
-
-  const legendDiv = d3.select(container).append('div')
-    .style('display', 'flex').style('flex-wrap', 'wrap').style('justify-content', 'center')
-    .style('align-items', 'center').style('gap', '6px 12px').style('padding', '4px 4px 2px')
-    .style('font-size', '9px').style('font-family', 'Inter, sans-serif').style('color', '#475569').style('flex-shrink', '0');
-  for (const [k, c] of Object.entries(colors)) {
-    const item = legendDiv.append('div').style('display', 'flex').style('align-items', 'center').style('gap', '3px');
-    item.append('div').style('width', '8px').style('height', '8px').style('border-radius', '2px').style('background', c).style('flex-shrink', '0');
-    item.append('span').text(k);
-  }
-
-  const svgContainer = d3.select(container).append('div').style('flex', '1').style('min-height', '0').style('width', '100%');
-  const cW = container.clientWidth || 300;
-  const cH = Math.max(60, (container.clientHeight || 180) - 40);
-  const margin = { top: 20, right: 10, bottom: 36, left: 38 };
-  const width  = cW - margin.left - margin.right;
-  const height = cH - margin.top  - margin.bottom;
-  if (width <= 0 || height <= 0) return;
-
-  const svg = svgContainer.append('svg').attr('width', cW).attr('height', cH)
-    .append('g').attr('transform', `translate(${margin.left},${margin.top})`);
-
-  const x0 = d3.scaleBand().domain(categories).range([0, width]).padding(0.15);
-  const x1 = d3.scaleBand().domain(subgroups).range([0, x0.bandwidth()]).padding(0.06);
-  const maxVal = d3.max(dataArr, d => Math.max(...subgroups.map(k => d[k]))) || 1;
-  const y = d3.scaleLinear().domain([0, maxVal * 1.2]).range([height, 0]);
-
-  svg.append('g').attr('transform', `translate(0,${height})`)
-    .call(d3.axisBottom(x0).tickSizeOuter(0))
-    .selectAll('text').style('font-family', 'Inter, sans-serif').style('font-size', '10px');
-  svg.append('g').call(d3.axisLeft(y).ticks(4).tickFormat(d => d.toFixed(0) + '%'))
-    .selectAll('text').style('font-family', 'Inter, sans-serif').style('font-size', '9px');
-
-  svg.append('text').attr('x', width / 2).attr('y', -7).attr('text-anchor', 'middle')
-    .style('font-size', '10.5px').style('font-family', 'Inter, sans-serif').style('font-weight', '600').text('Victim Type (%)');
 
   let tooltip = d3.select('body').select('#victim-tooltip');
   if (tooltip.empty()) {
@@ -233,38 +364,130 @@ function _l2DrawVictimTypeBarplotCombined(containerId, tData, gData, nNeighbors)
       .style('box-shadow', '0 4px 6px rgba(0,0,0,0.1)').style('z-index', 10000).style('display', 'none');
   }
 
-  const categoryGroups = svg.selectAll('.cat-group').data(dataArr).enter().append('g')
-    .attr('class', 'cat-group').attr('transform', d => `translate(${x0(d.category)},0)`);
+  const barRow = document.createElement('div');
+  barRow.style.display = 'flex';
+  barRow.style.flexDirection = 'row';
+  barRow.style.flex = '1';
+  barRow.style.gap = '8px';
+  barRow.style.paddingTop = '4px';
+  container.appendChild(barRow);
 
-  categoryGroups.selectAll('.vbar')
-    .data(d => subgroups.map(k => ({ key: k, value: d[k], category: d.category, count: d.counts[k] })))
-    .enter().append('rect').attr('class', 'vbar')
-    .attr('x', d => x1(d.key)).attr('y', d => y(d.value))
-    .attr('width', x1.bandwidth()).attr('height', d => Math.max(1, height - y(d.value)))
-    .attr('fill', d => colors[d.key]);
+  const getPrePostMax = (preObj, postObj) => {
+    const preKnown  = Math.max(1, categories.reduce((s, c) => s + (preObj[c]  || 0), 0));
+    const postKnown = Math.max(1, categories.reduce((s, c) => s + (postObj[c] || 0), 0));
+    const arr = categories.map(cat => Math.max((preObj[cat] || 0)/preKnown*100, (postObj[cat] || 0)/postKnown*100));
+    return Math.max(...arr, 0);
+  };
+  const globalMaxY = Math.max(getPrePostMax(tPreObj, tPostObj), getPrePostMax(gPreObj, gPostObj), 1);
 
-  categoryGroups.selectAll('.hover-overlay')
-    .data(d => subgroups.map(k => ({ key: k, value: d[k], category: d.category, count: d.counts[k] })))
-    .enter().append('rect').attr('class', 'hover-overlay')
-    .attr('x', d => x1(d.key)).attr('y', 0).attr('width', x1.bandwidth()).attr('height', height)
-    .attr('fill', 'transparent').style('cursor', 'default')
-    .on('mouseover', function (e, d) {
-      categoryGroups.selectAll('.vbar').filter(b => b.key === d.key && b.category === d.category).attr('opacity', 0.7);
-      tooltip.html(`<div style="font-weight:700;margin-bottom:4px;">${d.key}</div><div>Victim: <b>${d.category}</b></div><div>Share: <b>${d.value.toFixed(1)}%</b></div>`).style('display', 'block');
-    })
-    .on('mousemove', function (e) {
-      let lp = e.pageX + 15;
-      if (lp + tooltip.node().offsetWidth > window.innerWidth - 10) lp = e.pageX - tooltip.node().offsetWidth - 15;
-      tooltip.style('left', lp + 'px').style('top', (e.pageY - 10) + 'px');
-    })
-    .on('mouseout', function (e, d) {
-      categoryGroups.selectAll('.vbar').filter(b => b.key === d.key && b.category === d.category).attr('opacity', 1);
-      tooltip.style('display', 'none');
-    });
+  const drawBarplot = (parentEl, preObj, postObj, title, preColor, postColor) => {
+    const wrapper = document.createElement('div');
+    Object.assign(wrapper.style, { flex: '1', minWidth: '0', height: '100%', display: 'flex', flexDirection: 'column' });
+    parentEl.appendChild(wrapper);
+
+    const labelEl = document.createElement('div');
+    labelEl.textContent = title;
+    Object.assign(labelEl.style, { fontSize: '10px', fontWeight: '700', fontFamily: 'Inter, sans-serif', color: '#334155', marginBottom: '2px', textAlign: 'center' });
+    wrapper.appendChild(labelEl);
+
+    const totalPre = allCatKeys.reduce((s, c) => s + (preObj[c] || 0), 0);
+    const totalPost = allCatKeys.reduce((s, c) => s + (postObj[c] || 0), 0);
+
+    let sim = 0;
+    if (totalPre > 0 && totalPost > 0) {
+      allCatKeys.forEach(cat => {
+        sim += Math.min((preObj[cat] || 0) / totalPre, (postObj[cat] || 0) / totalPost);
+      });
+    }
+
+    const legendHtml = document.createElement('div');
+    Object.assign(legendHtml.style, { display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '4px' });
+    legendHtml.innerHTML = `
+      <div style="display:flex; align-items:center; gap:4px;"><div style="width:8px; height:8px; border-radius:2px; background:${preColor}; opacity:1;"></div><span style="font-size:8.5px; font-family:Inter, sans-serif; color:#334155;">Pre (n=${totalPre})</span></div>
+      <div style="display:flex; align-items:center; gap:4px;"><div style="width:8px; height:8px; border-radius:2px; background:${postColor}; opacity:1;"></div><span style="font-size:8.5px; font-family:Inter, sans-serif; color:#334155;">Post (n=${totalPost})</span></div>
+      ${_l2CreateSimilarityBar(sim, true)}
+    `;
+    wrapper.appendChild(legendHtml);
+
+    const svgWrapper = document.createElement('div');
+    svgWrapper.style.flex = '1'; svgWrapper.style.width = '100%';
+    wrapper.appendChild(svgWrapper);
+
+    const preKnown  = Math.max(1, categories.reduce((s, c) => s + (preObj[c]  || 0), 0));
+    const postKnown = Math.max(1, categories.reduce((s, c) => s + (postObj[c] || 0), 0));
+
+    const dataArr = categories.map(cat => ({
+      category: cat,
+      Pre: (preObj[cat] || 0) / preKnown * 100,
+      Post: (postObj[cat] || 0) / postKnown * 100,
+      counts: {
+        Pre: preObj[cat] || 0,
+        Post: postObj[cat] || 0
+      }
+    }));
+
+    const cW = (container.clientWidth || 300) / 2 - 4; 
+    const cH = Math.max(60, (container.clientHeight || 180) - 65);
+    const margin = { top: 15, right: 10, bottom: 20, left: 30 };
+    const width  = cW - margin.left - margin.right;
+    const height = cH - margin.top  - margin.bottom;
+    if (width <= 0 || height <= 0) return;
+
+    const svg = d3.select(svgWrapper).append('svg').attr('width', cW).attr('height', cH)
+      .append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+    const subgroups = ['Pre', 'Post'];
+    const x0 = d3.scaleBand().domain(categories).range([0, width]).padding(0.2);
+    const x1 = d3.scaleBand().domain(subgroups).range([0, x0.bandwidth()]).padding(0.05);
+    const y = d3.scaleLinear().domain([0, globalMaxY * 1.15]).range([height, 0]);
+
+    svg.append('g').attr('transform', `translate(0,${height})`)
+      .call(d3.axisBottom(x0).tickSizeOuter(0))
+      .selectAll('text').style('font-family', 'Inter, sans-serif').style('font-size', '9px');
+    
+    svg.append('g').call(d3.axisLeft(y).ticks(4).tickFormat(d => d.toFixed(0) + '%'))
+      .selectAll('text').style('font-family', 'Inter, sans-serif').style('font-size', '8px');
+
+    const colors = { 'Pre': preColor, 'Post': postColor };
+
+    const categoryGroups = svg.selectAll('.cat-group').data(dataArr).enter().append('g')
+      .attr('class', 'cat-group').attr('transform', d => `translate(${x0(d.category)},0)`);
+
+    categoryGroups.selectAll('.vbar')
+      .data(d => subgroups.map(k => ({ key: k, value: d[k], category: d.category, count: d.counts[k] })))
+      .enter().append('rect').attr('class', 'vbar')
+      .attr('x', d => x1(d.key)).attr('y', d => y(d.value))
+      .attr('width', x1.bandwidth()).attr('height', d => Math.max(0, height - y(d.value)))
+      .attr('fill', d => colors[d.key]);
+
+    categoryGroups.selectAll('.hover-overlay')
+      .data(d => subgroups.map(k => ({ key: k, value: d[k], category: d.category, count: d.counts[k] })))
+      .enter().append('rect').attr('class', 'hover-overlay')
+      .attr('x', d => x1(d.key)).attr('y', 0).attr('width', x1.bandwidth()).attr('height', height)
+      .attr('fill', 'transparent').style('cursor', 'default')
+      .on('mouseover', function (e, d) {
+        categoryGroups.selectAll('.vbar').filter(b => b.key === d.key && b.category === d.category).attr('opacity', 0.7);
+        tooltip.html(`<div style="font-weight:700;margin-bottom:4px;">${title} - ${d.key}</div><div>Victim: <b>${d.category}</b></div><div>Share: <b>${d.value.toFixed(1)}%</b></div><div>Count: <b>${d.count}</b></div>`).style('display', 'block');
+      })
+      .on('mousemove', function (e) {
+        let lp = e.pageX + 15;
+        if (lp + tooltip.node().offsetWidth > window.innerWidth - 10) lp = e.pageX - tooltip.node().offsetWidth - 15;
+        tooltip.style('left', lp + 'px').style('top', (e.pageY - 10) + 'px');
+      })
+      .on('mouseout', function (e, d) {
+        categoryGroups.selectAll('.vbar').filter(b => b.key === d.key && b.category === d.category).attr('opacity', 1);
+        tooltip.style('display', 'none');
+      });
+
+
+  };
+
+  drawBarplot(barRow, tPreObj, tPostObj, 'Target Segment', COLOR_PRE_BARS, COLOR_POST_BARS);
+  drawBarplot(barRow, gPreObj, gPostObj, 'Group', COLOR_PRE_BARS, COLOR_POST_BARS);
 
   const getClassifiedRate = (obj) => {
     const total = allCatKeys.reduce((s, c) => s + (obj[c] || 0), 0);
-    const known = categoryKeys.reduce((s, c) => s + (obj[c] || 0), 0);
+    const known = categories.reduce((s, c) => s + (obj[c] || 0), 0);
     return total > 0 ? (known / total * 100).toFixed(1) : '0.0';
   };
 
@@ -304,6 +527,7 @@ function _l2DrawCrashTypeRadarCombined(containerId, tData, gData, nNeighbors) {
   radarRow.style.flexDirection = 'row';
   radarRow.style.flex = '1';
   radarRow.style.gap = '4px';
+  radarRow.style.paddingTop = '4px';
   container.appendChild(radarRow);
 
   const axesNames = [
@@ -352,21 +576,39 @@ function _l2DrawCrashTypeRadarCombined(containerId, tData, gData, nNeighbors) {
 
     const labelEl = document.createElement('div');
     labelEl.textContent = title;
-    Object.assign(labelEl.style, { fontSize: '10px', fontWeight: '700', fontFamily: 'Inter, sans-serif', color: '#334155', marginBottom: '8px' });
+    Object.assign(labelEl.style, { fontSize: '10px', fontWeight: '700', fontFamily: 'Inter, sans-serif', color: '#334155', marginBottom: '2px' });
     wrapper.appendChild(labelEl);
+
+    const totalPre = getTotal(rawPre);
+    const totalPost = getTotal(rawPost);
+
+    let sim = 0;
+    if (totalPre > 0 && totalPost > 0) {
+      [...axesNames, 'Other/Unknown'].forEach(cat => {
+        sim += Math.min((rawPre[cat] || 0) / totalPre, (rawPost[cat] || 0) / totalPost);
+      });
+    }
+
+    const legendHtml = document.createElement('div');
+    Object.assign(legendHtml.style, { display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' });
+    legendHtml.innerHTML = `
+      <div style="display:flex; align-items:center; gap:4px;"><div style="width:8px; height:8px; border-radius:2px; background:${preColor}; opacity:0.85;"></div><span style="font-size:8.5px; font-family:Inter, sans-serif; color:#334155;">Pre (n=${totalPre})</span></div>
+      <div style="display:flex; align-items:center; gap:4px;"><div style="width:8px; height:8px; border-radius:2px; background:${postColor}; opacity:0.85;"></div><span style="font-size:8.5px; font-family:Inter, sans-serif; color:#334155;">Post (n=${totalPost})</span></div>
+      ${_l2CreateSimilarityBar(sim, true)}
+    `;
+    wrapper.appendChild(legendHtml);
 
     const svgWrapper = document.createElement('div');
     svgWrapper.style.flex = '1'; svgWrapper.style.width = '100%';
     wrapper.appendChild(svgWrapper);
 
     const containerW = container.clientWidth || 300;
-    // Riserva spazio per la nota in basso (circa 20px)
-    const containerH = (container.clientHeight || 200) - 20;
+    // Riserva spazio per la nota in basso e per la nuova legenda
+    const containerH = (container.clientHeight || 200) - 45;
     const W = Math.max(40, containerW / 2 - 8);
     const H = Math.max(40, containerH - 28);
-    const labelPad = 14;
-    // Maggior margine per le etichette in modo che non sbordino dall'SVG (evitando sovrapposizioni o tagli)
-    const radius = Math.max(20, Math.min(W / 2 - labelPad - 20, H / 2 - labelPad - 16));
+    const labelPad = 8;
+    const radius = Math.max(20, Math.min(W / 2 - labelPad - 12, H / 2 - labelPad - 8));
     svgWrapper.style.width = W + 'px'; svgWrapper.style.height = H + 'px';
 
     const svg = d3.select(svgWrapper).append('svg')
@@ -436,22 +678,11 @@ function _l2DrawCrashTypeRadarCombined(containerId, tData, gData, nNeighbors) {
     svg.append('path').datum(postData).attr('d', radarLine)
       .style('fill', postColor).style('fill-opacity', 0.4).style('stroke', postColor).style('stroke-width', 2);
 
-    const legendHtml = document.createElement('div');
-    Object.assign(legendHtml.style, { position: 'absolute', left: '4px', top: '4px', display: 'flex', flexDirection: 'column', gap: '4px', pointerEvents: 'none' });
-    const lgDiv = document.createElement('div');
-    lgDiv.style.cssText = 'display:flex; flex-direction:column; gap:2px;';
-    lgDiv.innerHTML = `
-      <div style="display:flex; align-items:center; gap:3px;"><div style="width:8px; height:8px; border-radius:2px; background:${preColor}; opacity:0.85;"></div><span style="font-size:8.5px; font-family:Inter, sans-serif; color:#334155;">Pre</span></div>
-      <div style="display:flex; align-items:center; gap:3px;"><div style="width:8px; height:8px; border-radius:2px; background:${postColor}; opacity:0.85;"></div><span style="font-size:8.5px; font-family:Inter, sans-serif; color:#334155;">Post</span></div>
-    `;
-    legendHtml.appendChild(lgDiv);
 
-    wrapper.style.position = 'relative';
-    wrapper.appendChild(legendHtml);
   };
 
-  drawRadar(radarRow, tPreAgg, tPostAgg, tPreRaw, tPostRaw, 'Target Segment', '#FFD600', '#fd8d3c');
-  drawRadar(radarRow, gPreAgg, gPostAgg, gPreRaw, gPostRaw, 'Group',          '#9e9ac8', '#756bb1');
+  drawRadar(radarRow, tPreAgg, tPostAgg, tPreRaw, tPostRaw, 'Target Segment', '#bcbddc', '#756bb1');
+  drawRadar(radarRow, gPreAgg, gPostAgg, gPreRaw, gPostRaw, 'Group',          '#bcbddc', '#756bb1');
 
   const getClassifiedRate = (raw) => {
     const tot = getTotal(raw);
@@ -469,103 +700,7 @@ function _l2DrawCrashTypeRadarCombined(containerId, tData, gData, nNeighbors) {
     .html(`Classified Data &mdash; Target: Pre <b>${classTPre}%</b> &middot; Post <b>${classTPost}%</b> | Group: Pre <b>${classGPre}%</b> &middot; Post <b>${classGPost}%</b>`);
 }
 
-// =============================================================================
-//  TIME HEATMAP (Pre + Post, side-by-side)
-// =============================================================================
 
-function _l2DrawTimeHeatmap(containerId, preData, postData, preColor, postColor) {
-  const container = document.getElementById(containerId);
-  container.innerHTML = '';
-  Object.assign(container.style, { display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: '10px', overflow: 'hidden' });
-
-  const divPre  = document.createElement('div');
-  const divPost = document.createElement('div');
-  divPre.style.flex = divPost.style.flex = '1';
-  divPre.style.minWidth = divPost.style.minWidth = '0';
-  container.appendChild(divPre);
-  container.appendChild(divPost);
-
-  const getMatrixMax = dataset => {
-    const matrix = Array.from({ length: 7 }, () => Array(12).fill(0));
-    dataset.forEach(d => {
-      const dIdx = d.day_of_week, hIdx = Math.floor(d.hour / 2);
-      if (dIdx >= 0 && dIdx < 7 && hIdx >= 0 && hIdx < 12) matrix[dIdx][hIdx] += 1;
-    });
-    return d3.max(matrix.flat());
-  };
-  const globalMaxVal  = Math.max(getMatrixMax(preData), getMatrixMax(postData), 1);
-  const colorScale    = d3.scaleSequential(d3.interpolateBlues).domain([0, globalMaxVal]);
-
-  const parentH = container.parentElement ? container.parentElement.clientHeight : 200;
-  const hmH     = Math.max(100, parentH - 28);
-  divPre.style.height = divPost.style.height = hmH + 'px';
-
-  const drawHeatmap = (targetDiv, dataset, title) => {
-    const margin = { top: 18, right: 6, bottom: 22, left: 40 };
-    const divW   = targetDiv.clientWidth  || 140;
-    const divH   = targetDiv.clientHeight || hmH;
-    const width  = divW - margin.left - margin.right;
-    const height = divH - margin.top  - margin.bottom;
-    if (width <= 0 || height <= 0) return;
-
-    const svg = d3.select(targetDiv).append('svg').attr('width', divW).attr('height', divH)
-      .append('g').attr('transform', `translate(${margin.left},${margin.top})`);
-
-    const matrix = Array.from({ length: 7 }, () => Array(12).fill(0));
-    dataset.forEach(d => {
-      const dIdx = d.day_of_week, hIdx = Math.floor(d.hour / 2);
-      if (dIdx >= 0 && dIdx < 7 && hIdx >= 0 && hIdx < 12) matrix[dIdx][hIdx] += 1;
-    });
-    const flatData = [];
-    for (let d = 0; d < 7; d++) for (let h = 0; h < 12; h++) flatData.push({ day: d, hourBin: h, value: matrix[d][h] });
-
-    const days        = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const hourLabels  = ['0-2','2-4','4-6','6-8','8-10','10-12','12-14','14-16','16-18','18-20','20-22','22-24'];
-
-    const x = d3.scaleBand().domain(d3.range(7)).range([0, width]).padding(0.05);
-    const y = d3.scaleBand().domain(d3.range(12)).range([0, height]).padding(0.05);
-
-    svg.append('g').attr('transform', `translate(0,${height})`)
-      .call(d3.axisBottom(x).tickSize(0).tickFormat(d => days[d][0]))
-      .selectAll('text').style('font-family', 'Inter, sans-serif').style('font-size', '8px');
-    svg.append('g').call(d3.axisLeft(y).tickSize(0).tickFormat(d => hourLabels[d]))
-      .selectAll('text').style('font-family', 'Inter, sans-serif').style('font-size', '7.5px');
-    svg.selectAll('.domain').remove();
-
-    svg.append('text').attr('x', width / 2).attr('y', -5).attr('text-anchor', 'middle')
-      .style('font-size', '10px').style('font-family', 'Inter, sans-serif').style('font-weight', '700').text(title);
-    svg.append('text').attr('x', width / 2).attr('y', height + 17).attr('text-anchor', 'middle')
-      .style('font-size', '7.5px').style('fill', '#94a3b8').text('Day of week');
-
-    let ttHeat = d3.select('body').select('#heatmap-tooltip');
-    if (ttHeat.empty()) {
-      ttHeat = d3.select('body').append('div').attr('id', 'heatmap-tooltip')
-        .style('position', 'absolute').style('background', 'rgba(255,255,255,0.97)')
-        .style('border', '1px solid #d0d5dd').style('border-radius', '6px').style('padding', '6px 10px')
-        .style('pointer-events', 'none').style('font-size', '11px').style('font-family', 'Inter, sans-serif')
-        .style('box-shadow', '0 4px 6px rgba(0,0,0,0.1)').style('z-index', 10000).style('display', 'none');
-    }
-
-    svg.selectAll('.cell').data(flatData).enter().append('rect')
-      .attr('x', d => x(d.day)).attr('y', d => y(d.hourBin))
-      .attr('width', x.bandwidth()).attr('height', y.bandwidth())
-      .attr('fill', d => d.value === 0 ? '#f8fafc' : colorScale(d.value))
-      .attr('stroke', '#e2e8f0').attr('rx', 1)
-      .on('mouseover', function (e, d) {
-        d3.select(this).attr('stroke', '#475569').attr('stroke-width', 1.5);
-        ttHeat.html(`<div style="font-weight:700;margin-bottom:4px;">${title}</div><div>Day: <b>${days[d.day]}</b></div><div>Time: <b>${hourLabels[d.hourBin]}</b></div><div>Crashes: <b>${d.value}</b></div>`).style('display', 'block');
-      })
-      .on('mousemove', function (e) {
-        let lp = e.pageX + 15; if (lp + ttHeat.node().offsetWidth > window.innerWidth - 10) lp = e.pageX - ttHeat.node().offsetWidth - 15;
-        let tp = e.pageY - 10; if (tp + ttHeat.node().offsetHeight > window.innerHeight - 10) tp = e.pageY - ttHeat.node().offsetHeight - 15;
-        ttHeat.style('left', lp + 'px').style('top', tp + 'px');
-      })
-      .on('mouseout', function () { d3.select(this).attr('stroke', '#e2e8f0').attr('stroke-width', 1); ttHeat.style('display', 'none'); });
-  };
-
-  drawHeatmap(divPre,  preData,  'Pre');
-  drawHeatmap(divPost, postData, 'Post');
-}
 
 // =============================================================================
 //  TIME SCATTER (da temp_scatter.js, integrato qui)

@@ -82,7 +82,7 @@ function _l2RedrawLineplot() {
   if (statsContainer) {
     const statsA = computeStats(activeA);
     statsContainer.innerHTML = `
-      <div style="font-size: 11px; font-weight: 700; color: #756bb1; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">
+      <div style="font-size: 11px; font-weight: 700; color: #1f77b4; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">
         Avg Local
       </div>
       <div style="display: flex; gap: 16px; font-size: 11px; white-space:nowrap; margin-bottom: 4px;">
@@ -178,7 +178,7 @@ function _l2DrawLineplot(targetData, cohortAData) {
       svg.insert('rect', ':first-child')
         .attr('x', x(new Date(preStartT))).attr('y', 0)
         .attr('width', x(new Date(preEndT)) - x(new Date(preStartT))).attr('height', height)
-        .attr('fill', '#94a3b8').attr('opacity', 0.15);
+        .attr('fill', COLOR_PRE_PERIOD).attr('opacity', 0.35);
     }
 
     const postStartT = Math.max(xDom[0].getTime(), intDate.getTime());
@@ -187,7 +187,7 @@ function _l2DrawLineplot(targetData, cohortAData) {
       svg.insert('rect', ':first-child')
         .attr('x', x(new Date(postStartT))).attr('y', 0)
         .attr('width', x(new Date(postEndT)) - x(new Date(postStartT))).attr('height', height)
-        .attr('fill', '#6baed6').attr('opacity', 0.12);
+        .attr('fill', COLOR_POST_PERIOD).attr('opacity', 0.4);
     }
 
     const labelsByDate = {};
@@ -228,8 +228,8 @@ function _l2DrawLineplot(targetData, cohortAData) {
     });
   }
 
-  drawLine(parsedTarget, '#FFD600', false, 1.0);  // Target = Yellow
-  drawLine(parsedA,      '#756bb1', false, 0.8);  // Cohort A = CB Purples[4]
+  drawLine(parsedTarget, COLOR_TARGET,    false, 1.0);  // Target = Yellow
+  drawLine(parsedA,      COLOR_AVG_LOCAL, false, 0.8);  // Cohort A = CB Blues
 
   // Legenda
   d3.select(container).insert('div', 'svg')
@@ -238,11 +238,11 @@ function _l2DrawLineplot(targetData, cohortAData) {
     .style('font-size', '10px').style('margin-bottom', '4px')
     .style('justify-content', 'center').style('color', '#475569')
     .html(`
-      <div style="display:flex; align-items:center; gap:4px;"><div style="width:12px; height:12px; background:rgba(148, 163, 184, 0.4); border-radius:2px;"></div><span>Pre</span></div>
-      <div style="display:flex; align-items:center; gap:4px;"><div style="width:12px; height:12px; background:rgba(107, 174, 214, 0.4); border-radius:2px;"></div><span>Post</span></div>
-      <div style="display:flex; align-items:center; gap:4px;"><div style="width:12px; height:2px; background:#756bb1;"></div><span>Avg Local</span></div>
-      <div style="display:flex; align-items:center; gap:4px;"><div style="width:12px; height:2px; background:#FFD600;"></div><span>Target Segment</span></div>
-      <div style="display:flex; align-items:center; gap:4px;"><div style="width:12px; height:2px; border-bottom:2px dashed #FFD600;"></div><span>Target Intervention</span></div>
+      <div style="display:flex; align-items:center; gap:4px;"><div style="width:12px; height:12px; background:${COLOR_PRE_PERIOD}; border-radius:2px;"></div><span>Pre</span></div>
+      <div style="display:flex; align-items:center; gap:4px;"><div style="width:12px; height:12px; background:${COLOR_POST_PERIOD}; border-radius:2px;"></div><span>Post</span></div>
+      <div style="display:flex; align-items:center; gap:4px;"><div style="width:12px; height:2px; background:${COLOR_AVG_LOCAL};"></div><span>Avg Local</span></div>
+      <div style="display:flex; align-items:center; gap:4px;"><div style="width:12px; height:2px; background:${COLOR_TARGET};"></div><span>Target Segment</span></div>
+      <div style="display:flex; align-items:center; gap:4px;"><div style="width:12px; height:2px; border-bottom:2px dashed ${COLOR_TARGET};"></div><span>Target Intervention</span></div>
       <div style="display:flex; align-items:center; gap:4px;"><div style="width:12px; height:2px; border-bottom:2px dashed #9e9ac8;"></div><span>Other Interventions (hover)</span></div>
     `);
 
@@ -305,7 +305,7 @@ function _l2DrawLineplot(targetData, cohortAData) {
             <div style="display:inline-block; width:8px; height:8px; background:#FFD600; border:1px solid #d97706; margin-right:6px; border-radius:1px;"></div>Target
           </td><td style="color:#1e293b; font-weight:700; padding-left:6px; padding-top:4px; padding-bottom:3px;">${tPt.riskRate.toFixed(4)}</td></tr>`;
       if (aPt) html += `<tr><td style="text-align:left; white-space:nowrap; color:#334155; font-weight:600; padding-right:12px; padding-top:3px; padding-bottom:3px;">
-            <div style="display:inline-block; width:8px; height:8px; background:#756bb1; margin-right:6px; border-radius:1px;"></div>Avg Local
+            <div style="display:inline-block; width:8px; height:8px; background:#1f77b4; margin-right:6px; border-radius:1px;"></div>Avg Local
           </td><td style="color:#1e293b; font-weight:700; padding-left:6px; padding-top:3px; padding-bottom:3px;">${aPt.riskRate.toFixed(4)}</td></tr>`;
       html += '</table>' + invHtml;
 
@@ -389,33 +389,33 @@ function _l2DrawAADTAndCrashesChart(containerId, annualData, xLineplot, margin) 
 
   svg.append('g').attr('class', 'y-axis-crashes').attr('transform', 'translate(-15,0)')
     .call(d3.axisLeft(yCrashes).ticks(3).tickFormat(d3.format('d')))
-    .selectAll('text').attr('fill', '#FFD600').style('font-size', '8px');
+    .selectAll('text').attr('fill', COLOR_TARGET).style('font-size', '8px');
   svg.selectAll('.y-axis-crashes path, .y-axis-crashes line').attr('stroke', '#e2e8f0');
 
   svg.append('g').attr('class', 'y-axis-aadt').attr('transform', `translate(${barWidth - 15},0)`)
     .call(d3.axisRight(yAadt).ticks(3).tickFormat(d3.format('.2s')))
-    .selectAll('text').attr('fill', '#6baed6').style('font-size', '8px');
+    .selectAll('text').attr('fill', COLOR_AADT_BARS).style('font-size', '8px');
   svg.selectAll('.y-axis-aadt path, .y-axis-aadt line').attr('stroke', '#e2e8f0');
 
   svg.append('line').attr('x1', 0).attr('x2', barWidth).attr('y1', barHeight).attr('y2', barHeight).attr('stroke', '#ccc');
 
-  svg.append('text').attr('y', -4).attr('x', -15).attr('fill', '#FFD600')
+  svg.append('text').attr('y', -4).attr('x', -15).attr('fill', COLOR_TARGET)
     .style('text-anchor', 'start').style('font-weight', '700').style('font-size', '9px').text('● Crashes');
-  svg.append('text').attr('y', -4).attr('x', barWidth - 15).attr('fill', '#6baed6')
+  svg.append('text').attr('y', -4).attr('x', barWidth - 15).attr('fill', COLOR_AADT_BARS)
     .style('text-anchor', 'end').style('font-weight', '700').style('font-size', '9px').text('AADT ■');
 
   const barWidthPx = Math.max(6, Math.min(14, barWidth / annualData.length - 4));
   const bars = svg.selectAll('.bar').data(annualData).enter().append('rect').attr('class', 'bar')
     .attr('x', d => getXMid(d.year) - barWidthPx / 2).attr('y', d => yAadt(d.aadt))
     .attr('width', barWidthPx).attr('height', d => Math.max(0, barHeight - yAadt(d.aadt)))
-    .attr('fill', '#6baed6').attr('opacity', 0.75).style('pointer-events', 'none');
+    .attr('fill', COLOR_AADT_BARS).attr('opacity', 0.75).style('pointer-events', 'none');
 
   const line = d3.line().x(d => getXMid(d.year)).y(d => yCrashes(d.crashes)).curve(d3.curveLinear);
-  svg.append('path').datum(annualData).attr('fill', 'none').attr('stroke', '#FFD600').attr('stroke-width', 2).attr('d', line);
+  svg.append('path').datum(annualData).attr('fill', 'none').attr('stroke', COLOR_TARGET).attr('stroke-width', 2).attr('d', line);
 
   const points = svg.selectAll('.crash-point').data(annualData).enter().append('circle').attr('class', 'crash-point')
     .attr('cx', d => getXMid(d.year)).attr('cy', d => yCrashes(d.crashes))
-    .attr('r', 3).attr('fill', '#FFD600').attr('stroke', '#fff').attr('stroke-width', 1).style('pointer-events', 'none');
+    .attr('r', 3).attr('fill', COLOR_TARGET).attr('stroke', '#fff').attr('stroke-width', 1).style('pointer-events', 'none');
 
   const step = annualData.length > 8 ? 2 : 1;
   svg.selectAll('.bar-label').data(annualData.filter((d, i) => i % step === 0)).enter().append('text')
@@ -430,15 +430,15 @@ function _l2DrawAADTAndCrashesChart(containerId, annualData, xLineplot, margin) 
       let closestDist = Infinity, closestD = null;
       annualData.forEach(d => { const dist = Math.abs(x0 - new Date(d.year, 0, 1)); if (dist < closestDist) { closestDist = dist; closestD = d; } });
       if (!closestD) return;
-      bars.attr('opacity', 0.75).attr('fill', '#6baed6');
+      bars.attr('opacity', 0.75).attr('fill', COLOR_AADT_BARS);
       points.attr('r', 3).attr('stroke-width', 1);
-      bars.filter(b => b.year === closestD.year).attr('opacity', 1).attr('fill', d3.color('#6baed6').darker(0.5));
+      bars.filter(b => b.year === closestD.year).attr('opacity', 1).attr('fill', d3.color(COLOR_AADT_BARS).darker(0.5));
       points.filter(p => p.year === closestD.year).attr('r', 5).attr('stroke-width', 2);
       if (typeof _l2ShowCombinedTooltip === 'function') _l2ShowCombinedTooltip(e, closestD);
     })
     .on('mouseout', function () {
-      bars.attr('opacity', 0.75).attr('fill', '#6baed6');
-      points.attr('r', 3).attr('fill', '#FFD600').attr('stroke-width', 1);
+      bars.attr('opacity', 0.75).attr('fill', COLOR_AADT_BARS);
+      points.attr('r', 3).attr('fill', COLOR_TARGET).attr('stroke-width', 1);
       if (typeof _l2HideBarTooltip === 'function') _l2HideBarTooltip();
     });
 }
@@ -459,8 +459,8 @@ function _l2ShowCombinedTooltip(e, d) {
   }
   _l2BarTooltip.html(`
     <div style="font-weight:700; margin-bottom:4px;">Year: ${d.year}</div>
-    <div>AADT: <span style="font-weight:600; color: #6baed6;">${Math.round(d.aadt).toLocaleString()}</span></div>
-    <div>Crashes: <span style="font-weight:600; color: #FFD600;">${d.crashes.toLocaleString()}</span></div>
+    <div>AADT: <span style="font-weight:600; color: ${COLOR_AADT_BARS};">${Math.round(d.aadt).toLocaleString()}</span></div>
+    <div>Crashes: <span style="font-weight:600; color: ${COLOR_TARGET};">${d.crashes.toLocaleString()}</span></div>
   `);
   _l2BarTooltip.style('display', 'block');
   const ttWidth = _l2BarTooltip.node().offsetWidth;
