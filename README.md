@@ -6,6 +6,12 @@
 
 This repository hosts a full-stack, interactive dashboard designed to evaluate the real-world effectiveness of NYC's Vision Zero traffic-calming interventions. By combining a Python/Flask backend with a dynamic DC.js/Mapbox frontend, the tool enables a multi-level spatial and temporal analysis of road safety measures.
 
+## 📺 Dashboard Demonstration
+
+<video src="documentation/dashboard_demo.mp4" controls="controls" style="max-width: 100%;">
+  Your browser does not support the video tag.
+</video>
+
 ---
 
 ## 🔬 Research Context & Addressed Limitations
